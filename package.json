@@ -1,0 +1,16 @@
+{
+  "name": "nuvio-lamovie-provider",
+  "version": "1.0.0",
+  "description": "LaMovie provider for Nuvio app",
+  "scripts": {
+    "build": "node build.js lamovie",
+    "build:watch": "npm run build:watch",
+    "start": "node -e \"const http=require('http'),fs=require('fs'),path=require('path');http.createServer((req,res)=>{const fp=path.join(__dirname,req.url==='/'?'/manifest.json':req.url);if(fs.existsSync(fp)){res.writeHead(200,{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});res.end(fs.readFileSync(fp))}else{res.writeHead(404);res.end()}}).listen(3000,()=>console.log('Provider server running at http://localhost:3000'))\"",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "crypto-js": "^4.2.0",
+    "esbuild": "^0.19.0"
+  }
+}

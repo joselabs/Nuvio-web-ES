@@ -1,0 +1,14 @@
+[
+  {
+    "id": "lamovie",
+    "name": "LaMovie",
+    "description": "Streams en Latino/Español desde LaMovie. Soporta GoodStream, StreamWish, VOE y Filemoon.",
+    "version": "1.0.0",
+    "author": "nuvio-user",
+    "supportedTypes": ["movie", "tv"],
+    "filename": "providers/lamovie.js",
+    "enabled": true,
+    "contentLanguage": ["es"],
+    "supportsExternalPlayer": true
+  }
+]
