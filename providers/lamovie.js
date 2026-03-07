@@ -694,8 +694,12 @@ function getStreams(tmdbId, mediaType, season, episode) {
       console.log(`[LaMovie] \u2713 ${streams.length} streams en ${elapsed}s`);
       return streams;
     } catch (e) {
-      console.log(`[LaMovie] Error: ${e.message}`);
-      return [];
+      return [{
+        name: "ERROR",
+        title: e.message || "Error desconocido",
+        url: "https://example.com",
+        quality: "ERROR"
+      }];
     }
   });
 }
