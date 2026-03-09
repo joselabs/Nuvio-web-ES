@@ -1,10 +1,10 @@
 // src/lamovie/index.js
 import axios from 'axios';
-import { resolve as resolveGoodStream } from './resolvers/goodstream.js';
-import { resolve as resolveVoe } from './resolvers/voe.js';
-import { resolve as resolveFilemoon } from './resolvers/filemoon.js';
-import { resolve as resolveHlswish } from './resolvers/hlswish.js';
-import { resolve as resolveVimeos } from './resolvers/vimeos.js';
+import { resolve as resolveGoodStream } from '../resolvers/goodstream.js';
+import { resolve as resolveVoe } from '../resolvers/voe.js';
+import { resolve as resolveFilemoon } from '../resolvers/filemoon.js';
+import { resolve as resolveHlswish } from '../resolvers/hlswish.js';
+import { resolve as resolveVimeos } from '../resolvers/vimeos.js';
 
 // ============================================================================
 // CONFIGURACIÓN

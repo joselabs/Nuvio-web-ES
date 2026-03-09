@@ -1,4 +1,3 @@
-// build.js - Script de build para el provider LaMovie
 const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
@@ -44,7 +43,7 @@ async function buildProvider(name) {
 }
 
 async function main() {
-  const providerNames = filteredArgs.length > 0 ? filteredArgs : ['lamovie'];
+  const providerNames = filteredArgs.length > 0 ? filteredArgs : ['lamovie', 'cinecalidad'];
 
   for (const name of providerNames) {
     await buildProvider(name);
