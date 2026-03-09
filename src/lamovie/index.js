@@ -4,6 +4,7 @@ import { resolve as resolveGoodStream } from './resolvers/goodstream.js';
 import { resolve as resolveVoe } from './resolvers/voe.js';
 import { resolve as resolveFilemoon } from './resolvers/filemoon.js';
 import { resolve as resolveHlswish } from './resolvers/hlswish.js';
+import { resolve as resolveVimeos } from './resolvers/vimeos.js';
 
 // ============================================================================
 // CONFIGURACIÓN
@@ -22,10 +23,11 @@ const RESOLVERS = {
   'voe.sx': resolveVoe,
   'filemoon.sx': resolveFilemoon,
   'filemoon.to': resolveFilemoon,
+  'vimeos.net': resolveVimeos,
 };
 
 // Servidores ignorados (anti-bot fuerte, sin resolver viable)
-const IGNORED_HOSTS = ['vimeos.net'];
+const IGNORED_HOSTS = [];
 
 // ============================================================================
 // UTILIDADES
@@ -59,6 +61,7 @@ const getServerName = (url) => {
   if (url.includes('hlswish') || url.includes('streamwish')) return 'StreamWish';
   if (url.includes('voe.sx')) return 'VOE';
   if (url.includes('filemoon')) return 'Filemoon';
+  if (url.includes('vimeos.net')) return 'Vimeos';
   return 'Online';
 };
 
@@ -293,12 +296,8 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
     console.log(`[LaMovie] ✓ ${streams.length} streams en ${elapsed}s`);
 
     return streams;
-   } catch (e) {
-    return [{
-      name: 'ERROR',
-      title: e.message || 'Error desconocido',
-      url: 'https://example.com',
-      quality: 'ERROR'
-    }];
+  } catch (e) {
+    console.log(`[LaMovie] Error: ${e.message}`);
+    return [];
   }
 }
