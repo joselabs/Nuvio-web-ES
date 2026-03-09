@@ -12,8 +12,6 @@ import { resolve as resolveVimeos } from './resolvers/vimeos.js';
 const TMDB_API_KEY = '439c478a771f35c05022f9feabcca01c';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 const HEADERS = { 'User-Agent': UA, 'Accept': 'application/json' };
-const streamCache = new Map();
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutos
 
 // Servidores soportados y sus resolvers
 const RESOLVERS = {
@@ -223,12 +221,6 @@ async function processEmbed(embed) {
 // FUNCIÓN PRINCIPAL EXPORTADA
 // ============================================================================
 export async function getStreams(tmdbId, mediaType, season, episode) {
-  const cacheKey = `${tmdbId}-${mediaType}-${season || ''}-${episode || ''}`;
-  const cached = streamCache.get(cacheKey);
-  if (cached && Date.now() - cached.ts < CACHE_TTL) {
-    console.log(`[LaMovie] Cache hit: ${cacheKey}`);
-    return cached.streams;
-  }
   if (!tmdbId || !mediaType) return [];
 
   const startTime = Date.now();
@@ -328,7 +320,7 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
     console.log(`[LaMovie] ✓ ${streams.length} streams en ${elapsed}s`);
-    streamCache.set(cacheKey, { streams, ts: Date.now() });
+
     return streams;
   } catch (e) {
     console.log(`[LaMovie] Error: ${e.message}`);
