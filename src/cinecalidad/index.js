@@ -71,44 +71,36 @@ function b64decode(str) {
   } catch (e) { return null; }
 }
 
-// Extrae texto entre dos strings
-function between(str, start, end) {
-  const si = str.indexOf(start);
-  if (si === -1) return '';
-  const ei = str.indexOf(end, si + start.length);
-  if (ei === -1) return '';
-  return str.substring(si + start.length, ei);
-}
-
 // ============================================================================
 // TMDB
 // ============================================================================
 async function getTmdbData(tmdbId, mediaType) {
-  const attempts = [
-    { lang: 'es-MX', name: 'Latino' },
-    { lang: 'es-ES', name: 'España' },
-    { lang: 'en-US', name: 'Inglés' },
-  ];
+  const fetchTmdb = async (lang, name) => {
+    const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=${lang}`;
+    const { data } = await axios.get(url, { timeout: 5000, headers: HEADERS });
+    const title = mediaType === 'movie' ? data.title : data.name;
+    const originalTitle = mediaType === 'movie' ? data.original_title : data.original_name;
+    if (!title) throw new Error('No title');
+    if (lang === 'es-MX' && /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(title)) throw new Error('Japanese title');
+    return { title, originalTitle, year: (data.release_date || data.first_air_date || '').substring(0, 4) };
+  };
 
-  for (const { lang, name } of attempts) {
-    try {
-      const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=${lang}`;
-      const { data } = await axios.get(url, { timeout: 5000 });
-      const title = mediaType === 'movie' ? data.title : data.name;
-      const originalTitle = mediaType === 'movie' ? data.original_title : data.original_name;
-      if (!title) continue;
-      if (lang === 'es-MX' && /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(title)) continue;
-      console.log(`[CineCalidad] TMDB (${name}): "${title}"${title !== originalTitle ? ` | Original: "${originalTitle}"` : ''}`);
-      return {
-        title,
-        originalTitle,
-        year: (data.release_date || data.first_air_date || '').substring(0, 4),
-      };
-    } catch (e) {
-      console.log(`[CineCalidad] Error TMDB ${name}: ${e.message}`);
-    }
+  // Lanzar las 3 en paralelo pero priorizar Latino
+  const [latino, ingles, espana] = await Promise.allSettled([
+    fetchTmdb('es-MX', 'Latino'),
+    fetchTmdb('en-US', 'Inglés'),
+    fetchTmdb('es-ES', 'España'),
+  ]);
+
+  const result = latino.status === 'fulfilled' ? latino.value
+               : ingles.status === 'fulfilled' ? ingles.value
+               : espana.status === 'fulfilled' ? espana.value
+               : null;
+
+  if (result) {
+    console.log(`[CineCalidad] TMDB: "${result.title}"${result.title !== result.originalTitle ? ` | Original: "${result.originalTitle}"` : ''}`);
   }
-  return null;
+  return result;
 }
 
 // ============================================================================
@@ -220,7 +212,7 @@ async function getEmbedUrls(movieUrl) {
     await Promise.allSettled(decodedUrls.map(async (decoded) => {
       try {
         const { data: midData } = await axios.get(decoded, {
-          timeout: 6000, headers: HEADERS, maxRedirects: 5,
+          timeout: 3000, headers: HEADERS, maxRedirects: 3,
         });
 
         let finalUrl = '';
@@ -260,10 +252,10 @@ async function processEmbed(embedUrl) {
 
     return {
       name: 'CineCalidad',
-      title: `1080p · ${serverName}`,
+      title: `${result.quality || '1080p'} · ${serverName}`,
       url: result.url,
-      quality: '1080p',
-      headers: result.headers || {},
+      quality: result.quality || '1080p',
+      headers: result.headers || {}
     };
   } catch (e) {
     return null;
@@ -325,7 +317,6 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
     // 4. Resolver todos en paralelo con timeout global
     const RESOLVER_TIMEOUT = 5000;
     const uniqueEmbeds = [...new Set(embedUrls)];
-    console.log(`[CineCalidad DEBUG] uniqueEmbeds length: ${uniqueEmbeds.length}`, uniqueEmbeds);
     const streams = await new Promise((resolve) => {
       const results = [];
       let completed = 0;
@@ -333,9 +324,7 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
       const finish = () => resolve(results.filter(Boolean));
       const timer = setTimeout(finish, RESOLVER_TIMEOUT);
 
-      console.log(`[CineCalidad DEBUG] embedUrls: ${JSON.stringify([...embedUrls])}`);
-      uniqueEmbeds.forEach((url, i) => {
-        console.log(`[CineCalidad DEBUG] forEach item ${i}: ${url}`);
+      uniqueEmbeds.forEach(url => {
         processEmbed(url).then(result => {
           if (result) results.push(result);
           completed++;

@@ -4,6 +4,7 @@
 // Funciona en la práctica para obtener la URL, pero no valida la integridad del mensaje.
 import axios from 'axios';
 import CryptoJS from 'crypto-js';
+import { normalizeResolution } from './quality.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
@@ -155,8 +156,10 @@ export async function resolve(embedUrl) {
 
     console.log(`[Filemoon] URL encontrada: ${m3u8Url.substring(0, 80)}...`);
 
-    // Obtener mejor calidad del master
+   // Obtener mejor calidad del master
     let finalUrl = m3u8Url;
+    let quality = '1080p';
+
     if (m3u8Url.includes('master')) {
       try {
         const masterResp = await axios.get(m3u8Url, {
@@ -166,25 +169,31 @@ export async function resolve(embedUrl) {
         });
         const lines = masterResp.data.split('\n');
         let bestHeight = 0;
+        let bestWidth = 0;
         let bestUrl = m3u8Url;
+
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i].trim();
           if (line.startsWith('#EXT-X-STREAM-INF')) {
-            const mRes = line.match(/RESOLUTION=\d+x(\d+)/);
-            const height = mRes ? parseInt(mRes[1]) : 0;
+            const mRes = line.match(/RESOLUTION=(\d+)x(\d+)/);
+            const w = mRes ? parseInt(mRes[1]) : 0;
+            const h = mRes ? parseInt(mRes[2]) : 0;
             for (let j = i + 1; j < i + 3 && j < lines.length; j++) {
               const urlLine = lines[j].trim();
-              if (urlLine && !urlLine.startsWith('#') && height > bestHeight) {
-                bestHeight = height;
+              if (urlLine && !urlLine.startsWith('#') && h > bestHeight) {
+                bestHeight = h;
+                bestWidth = w;
                 bestUrl = urlLine.startsWith('http') ? urlLine : new URL(urlLine, m3u8Url).toString();
                 break;
               }
             }
           }
         }
+
         if (bestHeight > 0) {
           finalUrl = bestUrl;
-          console.log(`[Filemoon] Mejor calidad: ${bestHeight}p`);
+          quality = normalizeResolution(bestWidth, bestHeight);
+          console.log(`[Filemoon] Mejor calidad: ${quality}`);
         }
       } catch (e) {
         console.log(`[Filemoon] No se pudo parsear master: ${e.message}`);
@@ -193,6 +202,7 @@ export async function resolve(embedUrl) {
 
     return {
       url: finalUrl,
+      quality,
       headers: {
         'User-Agent': UA,
         'Referer': embedUrl,

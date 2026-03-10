@@ -26,9 +26,6 @@ const RESOLVERS = {
   'vimeos.net': resolveVimeos,
 };
 
-// Servidores ignorados (anti-bot fuerte, sin resolver viable)
-const IGNORED_HOSTS = [];
-
 // ============================================================================
 // UTILIDADES
 // ============================================================================
@@ -66,13 +63,10 @@ const getServerName = (url) => {
 };
 
 const getResolver = (url) => {
-  try {
-    const host = new URL(url).hostname.replace('www.', '');
-    if (IGNORED_HOSTS.some(h => url.includes(h))) return null;
-    for (const [pattern, resolver] of Object.entries(RESOLVERS)) {
-      if (url.includes(pattern)) return resolver;
-    }
-  } catch (e) {}
+  if (!url || !url.startsWith('http')) return null;
+  for (const pattern in RESOLVERS) {
+    if (url.includes(pattern)) return RESOLVERS[pattern];
+  }
   return null;
 };
 
@@ -80,32 +74,32 @@ const getResolver = (url) => {
 // TMDB
 // ============================================================================
 async function getTmdbData(tmdbId, mediaType) {
-  const attempts = [
-    { lang: 'es-MX', name: 'Latino' },
-    { lang: 'en-US', name: 'Inglés' },
-    { lang: 'es-ES', name: 'España' }
-  ];
+  const fetchTmdb = async (lang, name) => {
+    const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=${lang}`;
+    const { data } = await axios.get(url, { timeout: 5000, headers: HEADERS });
+    const title = mediaType === 'movie' ? data.title : data.name;
+    const originalTitle = mediaType === 'movie' ? data.original_title : data.original_name;
+    if (!title) throw new Error('No title');
+    if (lang === 'es-MX' && /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(title)) throw new Error('Japanese title');
+    return { title, originalTitle, year: (data.release_date || data.first_air_date || '').substring(0, 4) };
+  };
 
-  for (const { lang, name } of attempts) {
-    try {
-      const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=${lang}`;
-      const { data } = await axios.get(url, { timeout: 5000, headers: HEADERS });
-      const title = mediaType === 'movie' ? data.title : data.name;
-      const originalTitle = mediaType === 'movie' ? data.original_title : data.original_name;
+  // Lanzar las 3 en paralelo pero priorizar Latino
+  const [latino, ingles, espana] = await Promise.allSettled([
+    fetchTmdb('es-MX', 'Latino'),
+    fetchTmdb('en-US', 'Inglés'),
+    fetchTmdb('es-ES', 'España'),
+  ]);
 
-      if (lang === 'es-MX' && /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(title)) continue;
+  const result = latino.status === 'fulfilled' ? latino.value
+               : ingles.status === 'fulfilled' ? ingles.value
+               : espana.status === 'fulfilled' ? espana.value
+               : null;
 
-      console.log(`[LaMovie] TMDB (${name}): "${title}"${title !== originalTitle ? ` | Original: "${originalTitle}"` : ''}`);
-      return {
-        title,
-        originalTitle,
-        year: (data.release_date || data.first_air_date || '').substring(0, 4),
-      };
-    } catch (e) {
-      console.log(`[LaMovie] Error TMDB ${name}: ${e.message}`);
-    }
+  if (result) {
+    console.log(`[LaMovie] TMDB: "${result.title}"${result.title !== result.originalTitle ? ` | Original: "${result.originalTitle}"` : ''}`);
   }
-  return null;
+  return result;
 }
 
 // ============================================================================
@@ -206,9 +200,9 @@ async function processEmbed(embed) {
 
     return {
       name: 'LaMovie',
-      title: `${quality} · ${serverName}`,
+      title: `${result.quality || '1080p'} · ${serverName}`,
       url: result.url,
-      quality,
+      quality: result.quality || '1080p',
       headers: result.headers || {}
     };
   } catch (e) {

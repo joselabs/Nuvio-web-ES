@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { detectQuality } from './quality.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
@@ -17,7 +18,6 @@ export async function resolve(embedUrl) {
     });
 
     const data = resp.data;
-
     const packMatch = data.match(
       /eval\(function\(p,a,c,k,e,[dr]\)\{[\s\S]+?\}\('([\s\S]+?)',(\d+),(\d+),'([\s\S]+?)'\.split\('\|'\)/
     );
@@ -26,16 +26,12 @@ export async function resolve(embedUrl) {
       const payload = packMatch[1];
       const radix = parseInt(packMatch[2]);
       const symtab = packMatch[4].split('|');
-
       const chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
       const unbase = (str) => {
         let result = 0;
-        for (let i = 0; i < str.length; i++) {
-          result = result * radix + chars.indexOf(str[i]);
-        }
+        for (let i = 0; i < str.length; i++) result = result * radix + chars.indexOf(str[i]);
         return result;
       };
-
       const unpacked = payload.replace(/\b(\w+)\b/g, (match) => {
         const idx = unbase(match);
         return (symtab[idx] && symtab[idx] !== '') ? symtab[idx] : match;
@@ -43,11 +39,11 @@ export async function resolve(embedUrl) {
 
       const m3u8Match = unpacked.match(/["']([^"']+\.m3u8[^"']*)['"]/i);
       if (m3u8Match) {
-        console.log(`[Vimeos] URL encontrada: ${m3u8Match[1].substring(0, 80)}...`);
-        return {
-          url: m3u8Match[1],
-          headers: { 'User-Agent': UA, 'Referer': 'https://vimeos.net/' }
-        };
+        const url = m3u8Match[1];
+        const refererHeaders = { 'User-Agent': UA, 'Referer': 'https://vimeos.net/' };
+        const quality = await detectQuality(url, refererHeaders);
+        console.log(`[Vimeos] URL encontrada: ${url.substring(0, 80)}...`);
+        return { url, quality, headers: refererHeaders };
       }
     }
 

@@ -1,5 +1,6 @@
 // resolvers/voe.js
 import axios from 'axios';
+import { detectQuality } from './quality.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
@@ -112,8 +113,9 @@ export async function resolve(embedUrl) {
         const decoded = voeDecode(encodedArray, replMatch[1]);
         if (decoded && (decoded.source || decoded.direct_access_url)) {
           const url = decoded.source || decoded.direct_access_url;
+          const quality = await detectQuality(url, { Referer: embedUrl });
           console.log(`[VOE] URL encontrada: ${url.substring(0, 80)}...`);
-          return { url, headers: { Referer: embedUrl } };
+          return { url, quality, headers: { Referer: embedUrl } };
         }
       }
     }
@@ -134,7 +136,7 @@ export async function resolve(embedUrl) {
         try { url = atob(url); } catch(e) {}
       }
       console.log(`[VOE] URL encontrada (fallback): ${url.substring(0, 80)}...`);
-      return { url, headers: { Referer: embedUrl } };
+      return { url, quality: await detectQuality(url, { Referer: embedUrl }), headers: { Referer: embedUrl } };
     }
 
     console.log('[VOE] No se encontró URL');

@@ -1,5 +1,5 @@
-// resolvers/goodstream.js
 import axios from 'axios';
+import { detectQuality } from './quality.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
@@ -24,16 +24,11 @@ export async function resolve(embedUrl) {
     }
 
     const videoUrl = match[1];
-    console.log(`[GoodStream] URL encontrada: ${videoUrl.substring(0, 80)}...`);
+    const refererHeaders = { 'Referer': embedUrl, 'Origin': 'https://goodstream.one', 'User-Agent': UA };
+    const quality = await detectQuality(videoUrl, refererHeaders);
+    console.log(`[GoodStream] URL encontrada (${quality}): ${videoUrl.substring(0, 80)}...`);
 
-    return {
-      url: videoUrl,
-      headers: {
-        'Referer': embedUrl,
-        'Origin': 'https://goodstream.one',
-        'User-Agent': UA
-      }
-    };
+    return { url: videoUrl, quality, headers: refererHeaders };
   } catch (err) {
     console.log(`[GoodStream] Error: ${err.message}`);
     return null;
