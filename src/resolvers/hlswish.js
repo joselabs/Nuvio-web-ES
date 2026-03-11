@@ -80,10 +80,31 @@ export async function resolve(embedUrl) {
     const data = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
 
     // Método 1: file: "..." directo
-    const fileMatch = data.match(/file\s*:\s*["']([^"']+\.m3u8[^"']*)["']/i);
+    const fileMatch = data.match(/file\s*:\s*["']([^"']+)["']/i);
     if (fileMatch) {
       let url = fileMatch[1];
       if (url.startsWith('/')) url = embedHost + url;
+
+      // Si es una URL /stream/ de vibuxer, seguir el redirect para obtener el m3u8 real
+      if (url.includes('vibuxer.com/stream/')) {
+        console.log(`[HLSWish] Siguiendo redirect: ${url.substring(0, 80)}...`);
+        try {
+          const redirectResp = await axios.get(url, {
+            headers: { 'User-Agent': UA, 'Referer': embedHost + '/' },
+            timeout: 8000,
+            maxRedirects: 5,
+            validateStatus: s => s < 400,
+          });
+          // El redirect puede devolver la URL final en Location o en el body
+          const finalUrl = redirectResp.request?.res?.responseUrl || redirectResp.config?.url;
+          if (finalUrl && finalUrl.includes('.m3u8')) {
+            url = finalUrl;
+          }
+        } catch {
+          // Si falla el redirect, usar la URL original igual
+        }
+      }
+
       console.log(`[HLSWish] URL encontrada: ${url.substring(0, 80)}...`);
       return { url, quality: '1080p', headers: { 'User-Agent': UA, 'Referer': embedHost + '/' } };
     }
