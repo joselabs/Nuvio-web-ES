@@ -362,13 +362,10 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
     const tmdbInfo = await getTmdbData(tmdbId, mediaType);
     if (!tmdbInfo) return [];
 
-    // 2. Intentar slug directo → fallback a búsqueda
-    let found = await findBySlug(tmdbInfo, mediaType);
+    // 2. Buscar por slug directo
+    const found = await findBySlug(tmdbInfo, mediaType);
     if (!found) {
-      found = await findBySearch(tmdbInfo, mediaType);
-    }
-    if (!found) {
-      console.log('[LaMovie] No encontrado ni por slug ni por búsqueda');
+      console.log('[LaMovie] No encontrado por slug');
       return [];
     }
 

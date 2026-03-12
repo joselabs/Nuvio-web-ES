@@ -9,13 +9,16 @@ import { resolve as resolveVimeos } from '../resolvers/vimeos.js';
 // CONFIGURACIÓN
 // ============================================================================
 const TMDB_API_KEY = '439c478a771f35c05022f9feabcca01c';
-const HOST = 'https://cinecalidad.vg';
+const HOST = 'https://www.cinecalidad.vg';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 const HEADERS = {
   'User-Agent': UA,
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
   'Accept-Language': 'es-MX,es;q=0.9',
-  'Referer': HOST + '/',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Connection': 'keep-alive',
+  'Upgrade-Insecure-Requests': '1',
+  'Referer': 'https://www.cinecalidad.vg/',
 };
 
 const RESOLVERS = {
@@ -71,161 +74,147 @@ function b64decode(str) {
   } catch (e) { return null; }
 }
 
+// Extrae texto entre dos strings
+function between(str, start, end) {
+  const si = str.indexOf(start);
+  if (si === -1) return '';
+  const ei = str.indexOf(end, si + start.length);
+  if (ei === -1) return '';
+  return str.substring(si + start.length, ei);
+}
+
 // ============================================================================
 // TMDB
 // ============================================================================
 async function getTmdbData(tmdbId, mediaType) {
-  const fetchTmdb = async (lang, name) => {
-    const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=${lang}`;
-    const { data } = await axios.get(url, { timeout: 5000, headers: HEADERS });
-    const title = mediaType === 'movie' ? data.title : data.name;
-    const originalTitle = mediaType === 'movie' ? data.original_title : data.original_name;
-    if (!title) throw new Error('No title');
-    if (lang === 'es-MX' && /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(title)) throw new Error('Japanese title');
-    return { title, originalTitle, year: (data.release_date || data.first_air_date || '').substring(0, 4) };
-  };
+  const attempts = [
+    { lang: 'es-MX', name: 'Latino' },
+    { lang: 'es-ES', name: 'España' },
+    { lang: 'en-US', name: 'Inglés' },
+  ];
 
-  // Lanzar las 3 en paralelo pero priorizar Latino
-  const [latino, ingles, espana] = await Promise.allSettled([
-    fetchTmdb('es-MX', 'Latino'),
-    fetchTmdb('en-US', 'Inglés'),
-    fetchTmdb('es-ES', 'España'),
-  ]);
-
-  const result = latino.status === 'fulfilled' ? latino.value
-               : ingles.status === 'fulfilled' ? ingles.value
-               : espana.status === 'fulfilled' ? espana.value
-               : null;
-
-  if (result) {
-    console.log(`[CineCalidad] TMDB: "${result.title}"${result.title !== result.originalTitle ? ` | Original: "${result.originalTitle}"` : ''}`);
+  for (const { lang, name } of attempts) {
+    try {
+      const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=${lang}`;
+      const { data } = await axios.get(url, { timeout: 5000 });
+      const title = mediaType === 'movie' ? data.title : data.name;
+      const originalTitle = mediaType === 'movie' ? data.original_title : data.original_name;
+      if (!title) continue;
+      if (lang === 'es-MX' && /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(title)) continue;
+      console.log(`[CineCalidad] TMDB (${name}): "${title}"${title !== originalTitle ? ` | Original: "${originalTitle}"` : ''}`);
+      return {
+        title,
+        originalTitle,
+        year: (data.release_date || data.first_air_date || '').substring(0, 4),
+      };
+    } catch (e) {
+      console.log(`[CineCalidad] Error TMDB ${name}: ${e.message}`);
+    }
   }
-  return result;
+  return null;
 }
 
 // ============================================================================
-// BÚSQUEDA EN CINECALIDAD
+// SLUG → URL (método principal)
 // ============================================================================
-function generateVariants(tmdbInfo) {
-  const variants = new Set();
-  const { title, originalTitle, year } = tmdbInfo;
-
-  if (title) {
-    variants.add(title.trim());
-    const cleaned = title.replace(/[¿¡:;"']/g, '').replace(/\s+/g, ' ').trim();
-    if (cleaned !== title) variants.add(cleaned);
-  }
-
-  if (originalTitle && originalTitle !== title &&
-      !/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(originalTitle)) {
-    variants.add(originalTitle.trim());
-  }
-
-  return [...variants].slice(0, 4);
+function buildSlug(title) {
+  return title
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quitar tildes
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')                     // solo alfanumérico
+    .replace(/\s+/g, '-')                              // espacios → guiones
+    .replace(/-+/g, '-')                               // guiones dobles → uno
+    .replace(/^-|-$/g, '');                            // quitar guiones inicio/fin
 }
 
-async function searchCinecalidad(query) {
-  const url = `${HOST}/?s=${encodeURIComponent(query)}`;
-  try {
-    const { data } = await axios.get(url, { timeout: 8000, headers: HEADERS });
-
-    const articles = [];
-    let pos = 0;
-    while (true) {
-      const start = data.indexOf('<article', pos);
-      if (start === -1) break;
-      const end = data.indexOf('</article>', start);
-      if (end === -1) break;
-      articles.push(data.substring(start, end + 10));
-      pos = end + 10;
-    }
-
-    const results = [];
-    for (const article of articles) {
-      // Saltar series
-      if (article.includes('/serie/')) continue;
-
-      // URL desde <a class="absolute top-0 left-0 ... href="...">
-      const hrefMatch = article.match(/class="absolute top-0[^"]*"[^>]+href="([^"]+)"/);
-      if (!hrefMatch) continue;
-      const movieUrl = hrefMatch[1];
-
-      // Título desde <span class="sr-only">...</span>
-      const titleMatch = article.match(/<span class="sr-only">([^<]+)<\/span>/);
-      if (!titleMatch) continue;
-      const title = titleMatch[1].trim();
-
-      // Año desde el primer div de texto
-      const yearMatch = article.match(/>\s*(\d{4})\s*<\/div>/);
-      const year = yearMatch ? yearMatch[1] : '';
-
-      results.push({ url: movieUrl, title, year });
-    }
-
-    return results;
-  } catch (e) {
-    console.log(`[CineCalidad] Error búsqueda "${query}": ${e.message}`);
-    return [];
-  }
+// Extrae el año del H1: "Interestelar (2014)"
+function extractYearFromHtml(html) {
+  const match = html.match(/<h1[^>]*>[^<]*\((\d{4})\)[^<]*<\/h1>/);
+  return match ? match[1] : null;
 }
 
-function selectBestResult(results, tmdbInfo) {
-  if (results.length === 0) return null;
-  if (results.length === 1) return results[0];
-
-  const scored = results.map(r => {
-    let score = calculateSimilarity(r.title, tmdbInfo.title) * 2;
-    if (tmdbInfo.originalTitle) score += calculateSimilarity(r.title, tmdbInfo.originalTitle);
-    if (tmdbInfo.year && r.year && r.year === tmdbInfo.year) score += 0.5;
-    return { result: r, score };
-  });
-
-  scored.sort((a, b) => b.score - a.score);
-  return scored[0].result;
+// Intenta obtener la URL de la película por slug, verificando el año
+async function getMovieUrl(slug, expectedYear) {
+  const slugsToTry = [slug, `${slug}-2`, `${slug}-3`];
+  for (const s of slugsToTry) {
+    const url = `${HOST}/pelicula/${s}/`;
+    try {
+      const { data: html } = await axios.get(url, {
+        timeout: 8000,
+        headers: HEADERS,
+        validateStatus: status => status === 200,
+      });
+      const year = extractYearFromHtml(html);
+      if (!year || !expectedYear || year === expectedYear) {
+        console.log(`[CineCalidad] ✓ Slug directo: /pelicula/${s}/ (${year || '?'})`);
+        return url;
+      }
+      console.log(`[CineCalidad] Año no coincide: esperado ${expectedYear}, encontrado ${year} en /pelicula/${s}/`);
+    } catch {
+      // 404 o error → probar siguiente variante
+    }
+  }
+  return null;
 }
 
 // ============================================================================
 // OBTENER EMBEDS DE LA PÁGINA DE LA PELÍCULA
 // ============================================================================
+
+// Dominios que ya son embeds finales — no necesitan fetch intermedio
+const KNOWN_EMBED_DOMAINS = [
+  'goodstream.one', 'voe.sx', 'filemoon.sx', 'filemoon.to',
+  'hlswish.com', 'streamwish.com', 'streamwish.to', 'strwish.com',
+  'vimeos.net',
+];
+
+function isKnownEmbed(url) {
+  return KNOWN_EMBED_DOMAINS.some(d => url.includes(d));
+}
+
 async function getEmbedUrls(movieUrl) {
   try {
     const { data } = await axios.get(movieUrl, { timeout: 8000, headers: HEADERS });
 
+    // Solo data-src = links de "Ver Online". data-url = descargas, los ignoramos.
     const embedLinks = [];
-    const regex = /class="[^"]*inline-block[^"]*"[^>]+data-url="([^"]+)"/g;
+    const regex = /data-src="([A-Za-z0-9+/=]{20,})"/g;
     let match;
     while ((match = regex.exec(data)) !== null) embedLinks.push(match[1]);
 
-    const regex2 = /data-src="([A-Za-z0-9+/=]{20,})"/g;
-    while ((match = regex2.exec(data)) !== null) embedLinks.push(match[1]);
-
-    // Deduplicar URLs decodificadas antes de fetchear
     const decodedUrls = [...new Set(
       embedLinks
         .map(b64 => b64decode(b64))
         .filter(url => url && url.startsWith('http'))
     )];
 
-    console.log(`[CineCalidad] ${decodedUrls.length} URLs intermedias únicas`);
+    // Separar: los conocidos van directo, los desconocidos necesitan fetch intermedio
+    const directEmbeds = decodedUrls.filter(isKnownEmbed);
+    const intermediateUrls = decodedUrls.filter(u => !isKnownEmbed(u));
 
-    const embedUrls = new Set();
-    await Promise.allSettled(decodedUrls.map(async (decoded) => {
-      try {
-        const { data: midData } = await axios.get(decoded, {
-          timeout: 3000, headers: HEADERS, maxRedirects: 3,
-        });
+    console.log(`[CineCalidad] ${directEmbeds.length} embeds directos, ${intermediateUrls.length} intermedios`);
 
-        let finalUrl = '';
-        const btnMatch = midData.match(/id="btn_enlace"[^>]*>[\s\S]*?href="([^"]+)"/);
-        if (btnMatch) finalUrl = btnMatch[1];
-        if (!finalUrl) {
-          const iframeMatch = midData.match(/<iframe[^>]+src="([^"]+)"/);
-          if (iframeMatch) finalUrl = iframeMatch[1];
-        }
-        if (!finalUrl && decoded.includes('/e/')) finalUrl = decoded;
-        if (finalUrl && finalUrl.startsWith('http')) embedUrls.add(finalUrl);
-      } catch (e) {}
-    }));
+    const embedUrls = new Set(directEmbeds);
+
+    if (intermediateUrls.length > 0) {
+      await Promise.allSettled(intermediateUrls.map(async (decoded) => {
+        try {
+          const { data: midData } = await axios.get(decoded, {
+            timeout: 6000, headers: HEADERS, maxRedirects: 5,
+          });
+
+          let finalUrl = '';
+          const btnMatch = midData.match(/id="btn_enlace"[^>]*>[\s\S]*?href="([^"]+)"/);
+          if (btnMatch) finalUrl = btnMatch[1];
+          if (!finalUrl) {
+            const iframeMatch = midData.match(/<iframe[^>]+src="([^"]+)"/);
+            if (iframeMatch) finalUrl = iframeMatch[1];
+          }
+          if (!finalUrl && decoded.includes('/e/')) finalUrl = decoded;
+          if (finalUrl && finalUrl.startsWith('http')) embedUrls.add(finalUrl);
+        } catch (e) {}
+      }));
+    }
 
     return [...embedUrls];
   } catch (e) {
@@ -252,10 +241,10 @@ async function processEmbed(embedUrl) {
 
     return {
       name: 'CineCalidad',
-      title: `${result.quality || '1080p'} · ${serverName}`,
+      title: `1080p · ${serverName}`,
       url: result.url,
-      quality: result.quality || '1080p',
-      headers: result.headers || {}
+      quality: '1080p',
+      headers: result.headers || {},
     };
   } catch (e) {
     return null;
@@ -283,30 +272,28 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
     const tmdbInfo = await getTmdbData(tmdbId, mediaType);
     if (!tmdbInfo) return [];
 
-    // 2. Buscar en cinecalidad
-    const variants = generateVariants(tmdbInfo);
-    console.log(`[CineCalidad] ${variants.length} variantes: ${variants.join(', ')}`);
+    // 2. Buscar por slug directo
+    const slug = buildSlug(tmdbInfo.title);
+    const movieUrl = await getMovieUrl(slug, tmdbInfo.year);
 
-    let selected = null;
-    for (const variant of variants) {
-      const results = await searchCinecalidad(variant);
-      if (results.length > 0) {
-        const best = selectBestResult(results, tmdbInfo);
-        if (best) {
-          selected = best;
-          console.log(`[CineCalidad] ✓ "${variant}" → "${best.title}" (${best.url})`);
-          break;
-        }
+    if (!movieUrl) {
+      // Intentar con título original si es diferente
+      let altUrl = null;
+      if (tmdbInfo.originalTitle && tmdbInfo.originalTitle !== tmdbInfo.title) {
+        const altSlug = buildSlug(tmdbInfo.originalTitle);
+        altUrl = await getMovieUrl(altSlug, tmdbInfo.year);
       }
+      if (!altUrl) {
+        console.log('[CineCalidad] No encontrado por slug');
+        return [];
+      }
+      var selectedUrl = altUrl;
+    } else {
+      var selectedUrl = movieUrl;
     }
 
-    if (!selected) {
-      console.log('[CineCalidad] Sin resultados');
-      return [];
-    }
-
-    // 3. Obtener embeds (base64 decode + fetch intermedio)
-    const embedUrls = await getEmbedUrls(selected.url);
+    // 3. Obtener embeds
+    const embedUrls = await getEmbedUrls(selectedUrl);
     if (embedUrls.length === 0) {
       console.log('[CineCalidad] No se encontraron embeds');
       return [];
