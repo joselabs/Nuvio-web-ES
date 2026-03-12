@@ -12,6 +12,13 @@ import { resolve as resolveVimeos } from '../resolvers/vimeos.js';
 const TMDB_API_KEY = '439c478a771f35c05022f9feabcca01c';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 const HEADERS = { 'User-Agent': UA, 'Accept': 'application/json' };
+const BASE_URL = 'https://la.movie';
+
+// Países de origen que LaMovie considera anime
+const ANIME_COUNTRIES = ['JP', 'CN', 'KR'];
+
+// Género animación en TMDB
+const GENRE_ANIMATION = 16;
 
 // Servidores soportados y sus resolvers
 const RESOLVERS = {
@@ -26,7 +33,6 @@ const RESOLVERS = {
   'vimeos.net': resolveVimeos,
 };
 
-// Servidores ignorados (anti-bot fuerte, sin resolver viable)
 const IGNORED_HOSTS = [];
 
 // ============================================================================
@@ -36,12 +42,10 @@ const normalizeText = (text) =>
   text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
 const calculateSimilarity = (str1, str2) => {
-  // Stripear año entre paréntesis antes de comparar: "The Walking Dead (2010)" → "The Walking Dead"
   const s1 = normalizeText(str1).replace(/\s*\(\d{4}\)\s*$/, '').trim();
   const s2 = normalizeText(str2).replace(/\s*\(\d{4}\)\s*$/, '').trim();
   if (s1 === s2) return 1.0;
   if (s1.includes(s2) || s2.includes(s1)) {
-    // Penalizar por palabras extra: "Fear the Walking Dead" no debería ganarle a "The Walking Dead"
     const lenRatio = Math.min(s1.length, s2.length) / Math.max(s1.length, s2.length);
     return 0.8 * lenRatio;
   }
@@ -72,7 +76,6 @@ const getServerName = (url) => {
 
 const getResolver = (url) => {
   try {
-    const host = new URL(url).hostname.replace('www.', '');
     if (IGNORED_HOSTS.some(h => url.includes(h))) return null;
     for (const [pattern, resolver] of Object.entries(RESOLVERS)) {
       if (url.includes(pattern)) return resolver;
@@ -81,6 +84,35 @@ const getResolver = (url) => {
   return null;
 };
 
+// Convierte un título a slug estilo LaMovie
+// "The Walking Dead" (2010) → "the-walking-dead-2010"
+function buildSlug(title, year) {
+  const slug = title
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')   // quitar tildes
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')     // quitar signos especiales
+    .replace(/\s+/g, '-')              // espacios → guiones
+    .replace(/-+/g, '-')               // guiones dobles → uno
+    .replace(/^-|-$/g, '');            // quitar guiones inicio/fin
+  return year ? `${slug}-${year}` : slug;
+}
+
+// Determina la categoría de LaMovie según tipo y datos TMDB
+// Devuelve array de categorías a probar en orden
+function getCategories(mediaType, genres, originCountries) {
+  if (mediaType === 'movie') return ['peliculas'];
+
+  const isAnimation = (genres || []).includes(GENRE_ANIMATION);
+  if (!isAnimation) return ['series'];
+
+  const isAnimeCountry = (originCountries || []).some(c => ANIME_COUNTRIES.includes(c));
+  if (isAnimeCountry) return ['animes'];
+
+  // Animación de otro país → probar ambas en paralelo
+  return ['animes', 'series'];
+}
+
 // ============================================================================
 // TMDB
 // ============================================================================
@@ -88,7 +120,6 @@ async function getTmdbData(tmdbId, mediaType) {
   const attempts = [
     { lang: 'es-MX', name: 'Latino' },
     { lang: 'en-US', name: 'Inglés' },
-    { lang: 'es-ES', name: 'España' }
   ];
 
   for (const { lang, name } of attempts) {
@@ -105,6 +136,8 @@ async function getTmdbData(tmdbId, mediaType) {
         title,
         originalTitle,
         year: (data.release_date || data.first_air_date || '').substring(0, 4),
+        genres: (data.genres || []).map(g => g.id),
+        originCountries: data.origin_country || data.production_countries?.map(c => c.iso_3166_1) || [],
       };
     } catch (e) {
       console.log(`[LaMovie] Error TMDB ${name}: ${e.message}`);
@@ -113,8 +146,75 @@ async function getTmdbData(tmdbId, mediaType) {
   return null;
 }
 
+// Headers que pasan el filtro de Cloudflare de LaMovie
+const HTML_HEADERS = {
+  'User-Agent': UA,
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'es-MX,es;q=0.9',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Connection': 'keep-alive',
+  'Upgrade-Insecure-Requests': '1',
+};
+
 // ============================================================================
-// BÚSQUEDA EN LAMOVIE
+// SLUG → ID (método principal)
+// ============================================================================
+
+// Extrae el _id del shortlink en el HTML: <link rel='shortlink' href='https://la.movie/?p=16439' />
+function extractIdFromHtml(html) {
+  const match = html.match(/rel=['"]shortlink['"]\s+href=['"][^'"]*\?p=(\d+)['"]/);
+  return match ? match[1] : null;
+}
+
+// Intenta obtener el _id de LaMovie directamente por slug
+async function getIdBySlug(category, slug) {
+  const url = `${BASE_URL}/${category}/${slug}/`;
+  try {
+    const { data: html } = await axios.get(url, {
+      timeout: 8000,
+      headers: HTML_HEADERS,
+      validateStatus: s => s === 200,
+    });
+    const id = extractIdFromHtml(html);
+    if (id) {
+      console.log(`[LaMovie] ✓ Slug directo: /${category}/${slug} → id:${id}`);
+      return { id };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Busca el _id probando las categorías según tipo de contenido
+async function findBySlug(tmdbInfo, mediaType) {
+  const { title, originalTitle, year, genres, originCountries } = tmdbInfo;
+  const categories = getCategories(mediaType, genres, originCountries);
+
+  // Construir slugs a probar (título latino y título original)
+  const slugs = [];
+  if (title) slugs.push(buildSlug(title, year));
+  if (originalTitle && originalTitle !== title) slugs.push(buildSlug(originalTitle, year));
+
+  for (const slug of slugs) {
+    if (categories.length === 1) {
+      // Una sola categoría → fetch directo
+      const result = await getIdBySlug(categories[0], slug);
+      if (result) return result;
+    } else {
+      // Múltiples categorías → fetch en paralelo
+      const results = await Promise.allSettled(
+        categories.map(cat => getIdBySlug(cat, slug))
+      );
+      const found = results.find(r => r.status === 'fulfilled' && r.value);
+      if (found) return found.value;
+    }
+  }
+  return null;
+}
+
+// ============================================================================
+// BÚSQUEDA (fallback)
 // ============================================================================
 function generateSearchVariants(tmdbInfo, mediaType) {
   const variants = new Set();
@@ -151,7 +251,7 @@ function generateSearchVariants(tmdbInfo, mediaType) {
 
 async function searchLamovie(query, mediaType) {
   const encodedQuery = encodeURIComponent(query.trim());
-  const url = `https://la.movie/wp-api/v1/search?filter=%7B%7D&postType=any&q=${encodedQuery}&postsPerPage=10`;
+  const url = `${BASE_URL}/wp-api/v1/search?filter=%7B%7D&postType=any&q=${encodedQuery}&postsPerPage=10`;
   try {
     const { data } = await axios.get(url, { timeout: 8000, headers: HEADERS });
     if (!data?.data?.posts) return [];
@@ -171,7 +271,8 @@ function selectBestResult(results, tmdbInfo) {
   const scored = results.map(result => {
     let score = calculateSimilarity(result.title || '', tmdbInfo.title) * 2;
     if (tmdbInfo.originalTitle) score += calculateSimilarity(result.title || '', tmdbInfo.originalTitle);
-    if (tmdbInfo.year && result.year && result.year.toString() === tmdbInfo.year) score += 0.5;
+    const resultYear = (result.title || '').match(/\((\d{4})\)/)?.[1];
+    if (tmdbInfo.year && resultYear && resultYear === tmdbInfo.year) score += 0.5;
     return { result, score };
   });
 
@@ -179,8 +280,33 @@ function selectBestResult(results, tmdbInfo) {
   return scored[0].result;
 }
 
+async function findBySearch(tmdbInfo, mediaType) {
+  console.log('[LaMovie] Fallback: buscando por título...');
+  const variants = generateSearchVariants(tmdbInfo, mediaType);
+  const searchPromises = variants.slice(0, 3).map(async (v) => {
+    const results = await searchLamovie(v, mediaType);
+    return { variant: v, results };
+  });
+
+  const searchResults = await Promise.allSettled(searchPromises);
+
+  for (const r of searchResults) {
+    if (r.status === 'fulfilled' && r.value.results.length > 0) {
+      const best = selectBestResult(r.value.results, tmdbInfo);
+      if (best) {
+        console.log(`[LaMovie] ✓ Fallback encontró: "${best.title}" id:${best._id}`);
+        return { id: best._id };
+      }
+    }
+  }
+  return null;
+}
+
+// ============================================================================
+// EPISODIOS
+// ============================================================================
 async function getEpisodeId(seriesId, seasonNum, episodeNum) {
-  const url = `https://la.movie/wp-api/v1/single/episodes/list?_id=${seriesId}&season=${seasonNum}&page=1&postsPerPage=50`;
+  const url = `${BASE_URL}/wp-api/v1/single/episodes/list?_id=${seriesId}&season=${seasonNum}&page=1&postsPerPage=50`;
   try {
     const { data } = await axios.get(url, { timeout: 12000, headers: HEADERS });
     if (!data?.data?.posts) return null;
@@ -236,39 +362,19 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
     const tmdbInfo = await getTmdbData(tmdbId, mediaType);
     if (!tmdbInfo) return [];
 
-    // 2. Generar variantes y buscar en paralelo
-    const variants = generateSearchVariants(tmdbInfo, mediaType);
-    console.log(`[LaMovie] ${variants.length} variantes generadas`);
-
-    const searchPromises = variants.slice(0, 3).map(async (v) => {
-      const results = await searchLamovie(v, mediaType);
-      return { variant: v, results };
-    });
-
-    const searchResults = await Promise.allSettled(searchPromises);
-
-    let selected = null;
-    for (const r of searchResults) {
-      if (r.status === 'fulfilled' && r.value.results.length > 0) {
-        selected = r.value;
-        break;
-      }
+    // 2. Intentar slug directo → fallback a búsqueda
+    let found = await findBySlug(tmdbInfo, mediaType);
+    if (!found) {
+      found = await findBySearch(tmdbInfo, mediaType);
     }
-
-    if (!selected) {
-      console.log('[LaMovie] Sin resultados');
+    if (!found) {
+      console.log('[LaMovie] No encontrado ni por slug ni por búsqueda');
       return [];
     }
 
-    console.log(`[LaMovie] ✓ "${selected.variant}" (${selected.results.length} resultados)`);
+    let targetId = found.id;
 
-    // 3. Seleccionar mejor resultado
-    const bestMatch = selectBestResult(selected.results, tmdbInfo);
-    if (!bestMatch) return [];
-
-    let targetId = bestMatch._id;
-
-    // 4. Para series, obtener ID de episodio
+    // 3. Para series, obtener ID de episodio
     if (mediaType === 'tv' && season && episode) {
       const epId = await getEpisodeId(targetId, season, episode);
       if (!epId) {
@@ -278,9 +384,9 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
       targetId = epId;
     }
 
-    // 5. Obtener enlaces
+    // 4. Obtener enlaces
     const { data } = await axios.get(
-      `https://la.movie/wp-api/v1/player?postId=${targetId}&demo=0`,
+      `${BASE_URL}/wp-api/v1/player?postId=${targetId}&demo=0`,
       { timeout: 6000, headers: HEADERS }
     );
 
@@ -289,36 +395,25 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
       return [];
     }
 
-    // 6. Resolver con timeout global de 4s
+    // 5. Resolver con timeout global
     const RESOLVER_TIMEOUT = 5000;
-
     const embedPromises = data.data.embeds.map(embed => processEmbed(embed));
 
     const streams = await new Promise((resolve) => {
       const results = [];
       let completed = 0;
       const total = embedPromises.length;
-
       const finish = () => resolve(results.filter(Boolean));
-
-      // Timer global — devuelve lo que haya al llegar al límite
       const timer = setTimeout(finish, RESOLVER_TIMEOUT);
 
       embedPromises.forEach(p => {
         p.then(result => {
           if (result) results.push(result);
           completed++;
-          // Si ya terminaron todos, cancela el timer y devuelve
-          if (completed === total) {
-            clearTimeout(timer);
-            finish();
-          }
+          if (completed === total) { clearTimeout(timer); finish(); }
         }).catch(() => {
           completed++;
-          if (completed === total) {
-            clearTimeout(timer);
-            finish();
-          }
+          if (completed === total) { clearTimeout(timer); finish(); }
         });
       });
     });
