@@ -36,20 +36,6 @@ const RESOLVERS = {
 // ============================================================================
 // UTILIDADES
 // ============================================================================
-const normalizeText = (text) =>
-  text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-
-const calculateSimilarity = (str1, str2) => {
-  const s1 = normalizeText(str1);
-  const s2 = normalizeText(str2);
-  if (s1 === s2) return 1.0;
-  if (s1.includes(s2) || s2.includes(s1)) return 0.8;
-  const words1 = new Set(s1.split(/\s+/));
-  const words2 = new Set(s2.split(/\s+/));
-  const intersection = [...words1].filter(w => words2.has(w));
-  return intersection.length / Math.max(words1.size, words2.size);
-};
-
 const getServerName = (url) => {
   if (url.includes('goodstream'))  return 'GoodStream';
   if (url.includes('hlswish') || url.includes('streamwish') || url.includes('strwish')) return 'StreamWish';
@@ -276,20 +262,14 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
     const slug = buildSlug(tmdbInfo.title);
     const movieUrl = await getMovieUrl(slug, tmdbInfo.year);
 
-    if (!movieUrl) {
-      // Intentar con título original si es diferente
-      let altUrl = null;
-      if (tmdbInfo.originalTitle && tmdbInfo.originalTitle !== tmdbInfo.title) {
-        const altSlug = buildSlug(tmdbInfo.originalTitle);
-        altUrl = await getMovieUrl(altSlug, tmdbInfo.year);
-      }
-      if (!altUrl) {
-        console.log('[CineCalidad] No encontrado por slug');
-        return [];
-      }
-      var selectedUrl = altUrl;
-    } else {
-      var selectedUrl = movieUrl;
+    let selectedUrl = movieUrl;
+    if (!selectedUrl && tmdbInfo.originalTitle && tmdbInfo.originalTitle !== tmdbInfo.title) {
+      const altSlug = buildSlug(tmdbInfo.originalTitle);
+      selectedUrl = await getMovieUrl(altSlug, tmdbInfo.year);
+    }
+    if (!selectedUrl) {
+      console.log('[CineCalidad] No encontrado por slug');
+      return [];
     }
 
     // 3. Obtener embeds
