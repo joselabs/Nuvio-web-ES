@@ -23,6 +23,7 @@ const RESOLVER_MAP = {
   'vidhidepro.com':     { fn: resolveVidhide,  name: 'VidHide'    },
   'vidhide.com':        { fn: resolveVidhide,  name: 'VidHide'    },
   'dintezuvio.com':     { fn: resolveVidhide,  name: 'VidHide'    },
+  'filelions.to': { fn: resolveVidhide, name: 'VidHide' },
 };
 
 async function getImdbId(tmdbId, mediaType) {
@@ -52,11 +53,28 @@ async function getEmbeds(imdbId, mediaType, season, episode) {
       headers: HTML_HEADERS,
     });
 
-    const matches = [...html.matchAll(/go_to_playerVast\('(https?:\/\/[^']+)'/g)];
-    return [...new Set(matches.map(m => m[1]))];
+    // Extraer con data-lang
+    const matches = [...html.matchAll(/go_to_playerVast\('(https?:\/\/[^']+)'[^)]+\)[^<]*data-lang="(\d+)"/g)];
+    
+    // Si no hay matches con lang, fallback sin idioma
+    if (matches.length === 0) {
+      const fallback = [...html.matchAll(/go_to_playerVast\('(https?:\/\/[^']+)'/g)];
+      return { 0: [...new Set(fallback.map(m => m[1]))] };
+    }
+
+    // Agrupar por idioma
+    const byLang = {};
+    for (const m of matches) {
+      const url = m[1];
+      const lang = parseInt(m[2]);
+      if (!byLang[lang]) byLang[lang] = [];
+      if (!byLang[lang].includes(url)) byLang[lang].push(url);
+    }
+
+    return byLang;
   } catch (e) {
     console.log(`[XuPalace] Error fetch: ${e.message}`);
-    return [];
+    return {};
   }
 }
 
@@ -66,6 +84,8 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
   const startTime = Date.now();
   console.log(`[XuPalace] Buscando: TMDB ${tmdbId} (${mediaType})`);
 
+  const LANG_NAMES = { 0: 'Latino', 1: 'Español', 2: 'Subtitulado' };
+
   try {
     const imdbId = await getImdbId(tmdbId, mediaType);
     if (!imdbId) {
@@ -74,42 +94,54 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
     }
     console.log(`[XuPalace] IMDB ID: ${imdbId}`);
 
-    const embedUrls = await getEmbeds(imdbId, mediaType, season, episode);
-    if (embedUrls.length === 0) {
+    const byLang = await getEmbeds(imdbId, mediaType, season, episode);
+    if (Object.keys(byLang).length === 0) {
       console.log('[XuPalace] No hay embeds');
       return [];
     }
 
-    console.log(`[XuPalace] Resolviendo ${embedUrls.length} embeds...`);
+    // Cascada LAT → ESP → SUB
+    for (const lang of [0, 1, 2]) {
+      const urls = byLang[lang];
+      if (!urls || urls.length === 0) continue;
 
-    const results = await Promise.allSettled(
-      embedUrls.map(async url => {
-        const domain = new URL(url).hostname.replace('www.', '');
-        const resolver = RESOLVER_MAP[domain];
-        if (!resolver) {
-            console.log(`[XuPalace] Sin resolver para: ${domain}`);
+      const langName = LANG_NAMES[lang];
+      console.log(`[XuPalace] Resolviendo ${urls.length} embeds (${langName})...`);
+
+      const results = await Promise.allSettled(
+        urls.map(async url => {
+          const domain = new URL(url).hostname.replace('www.', '');
+          const resolver = RESOLVER_MAP[domain];
+          if (!resolver) {
+            console.log(`[XuPalace] Sin resolver para: ${domain} → ${url}`);
             return null;
-        }
-        const result = await resolver.fn(url);
-        if (result) result.server = resolver.name;
-        return result;
+          }
+          const result = await resolver.fn(url);
+          if (result) result.server = resolver.name;
+          return result;
         })
-    );
+      );
 
-    const streams = results
-      .filter(r => r.status === 'fulfilled' && r.value)
-      .map(r => ({
-        name: 'XuPalace',
-        title: `${r.value.quality || '1080p'} · ${r.value.server || 'Stream'}`,
-        url: r.value.url,
-        quality: r.value.quality || '1080p',
-        headers: r.value.headers || {},
-      }));
+      const streams = results
+        .filter(r => r.status === 'fulfilled' && r.value)
+        .map(r => ({
+          name: 'XuPalace',
+          title: `${r.value.quality || '1080p'} · ${langName} · ${r.value.server}`,
+          url: r.value.url,
+          quality: r.value.quality || '1080p',
+          headers: r.value.headers || {},
+        }));
 
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
-    console.log(`[XuPalace] ✓ ${streams.length} streams en ${elapsed}s`);
+      if (streams.length > 0) {
+        console.log(`[XuPalace] ✓ Streams encontrados en ${langName}, omitiendo idiomas de menor prioridad`);
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+        console.log(`[XuPalace] ✓ ${streams.length} streams en ${elapsed}s`);
+        return streams;
+      }
+    }
 
-    return streams;
+    console.log('[XuPalace] No se encontraron streams en ningún idioma');
+    return [];
   } catch (e) {
     console.log(`[XuPalace] Error: ${e.message}`);
     return [];

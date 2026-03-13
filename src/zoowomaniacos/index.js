@@ -88,20 +88,26 @@ async function getEmbeds(id) {
     const matches = [...html.matchAll(/src="(https?:\/\/[^"]+)"/g)];
     const urls = [...new Set(matches.map(m => m[1]))];
 
-    return urls.filter(url => {
+    const okru = urls.filter(url => {
       if (!url.includes('ok.ru/videoembed/')) return false;
       const okId = url.split('/').pop();
       return !OKRU_BLACKLIST.includes(okId);
     });
+
+    const archive = urls.filter(url => 
+      url.includes('archive.org') && (url.endsWith('.mp4') || url.endsWith('.mkv') || url.endsWith('.avi'))
+    );
+
+    return { okru, archive };
   } catch (e) {
     console.log(`[Zoowomaniacos] Error player: ${e.message}`);
-    return [];
+    return { okru: [], archive: [] };
   }
 }
 
 export async function getStreams(tmdbId, mediaType, season, episode) {
   if (!tmdbId || mediaType !== 'movie') return [];
-
+  
   const startTime = Date.now();
   console.log(`[Zoowomaniacos] Buscando: TMDB ${tmdbId}`);
 
@@ -131,24 +137,41 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
       return [];
     }
 
-    const embedUrls = await getEmbeds(selected.a1);
-    if (embedUrls.length === 0) {
+    const { okru: embedUrls, archive: archiveUrls } = await getEmbeds(selected.a1);
+
+    if (embedUrls.length === 0 && archiveUrls.length === 0) {
       console.log('[Zoowomaniacos] No hay embeds válidos');
       return [];
     }
 
-    console.log(`[Zoowomaniacos] Resolviendo ${embedUrls.length} embeds ok.ru...`);
+    const streams = [];
 
-    const results = await Promise.allSettled(embedUrls.map(url => resolveOkru(url)));
-    const streams = results
-      .filter(r => r.status === 'fulfilled' && r.value)
-      .map(r => ({
-        name: 'Zoowomaniacos',
-        title: `${r.value.quality} · OkRu`,
-        url: r.value.url,
-        quality: r.value.quality,
-        headers: r.value.headers || {},
+    // Resolver ok.ru
+    if (embedUrls.length > 0) {
+      console.log(`[Zoowomaniacos] Resolviendo ${embedUrls.length} embeds ok.ru...`);
+      const results = await Promise.allSettled(embedUrls.map(url => resolveOkru(url)));
+      results
+        .filter(r => r.status === 'fulfilled' && r.value)
+        .forEach(r => streams.push({
+          name: 'Zoowomaniacos',
+          title: `${r.value.quality} · OkRu`,
+          url: r.value.url,
+          quality: r.value.quality,
+          headers: r.value.headers || {},
         }));
+    }
+
+    // Archive.org — MP4 directo
+    for (const url of archiveUrls) {
+      console.log(`[Zoowomaniacos] Archive.org directo: ${url.substring(0, 60)}...`);
+      streams.push({
+        name: 'Zoowomaniacos',
+        title: 'Archive.org',
+        url: url,
+        quality: '1080p',
+        headers: { 'User-Agent': UA },
+      });
+    }
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
     console.log(`[Zoowomaniacos] ✓ ${streams.length} streams en ${elapsed}s`);
