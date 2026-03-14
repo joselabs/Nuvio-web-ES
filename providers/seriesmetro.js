@@ -145,7 +145,7 @@ function Z(e, t, o, a) {
 function tt(e, t) {
   return p(this, null, function* () {
     var l;
-    let { data: o } = yield d.default.get(e, { timeout: 8e3, headers: S(f({}, M), { Referer: t }) }), a = [...o.matchAll(/href="#options-(\d+)"[^>]*>[\s\S]*?<span class="server">([\s\S]*?)<\/span>/g)], r = [...o.matchAll(/\?trembed=(\d+)&#038;trid=(\d+)&trtype=(\d+)/g)];
+    let { data: o } = yield d.default.get(e, { timeout: 8e3, headers: S(f({}, M), { Referer: t }) }), a = [...o.matchAll(/href="#options-(\d+)"[^>]*>[\s\S]*?<span class="server">([\s\S]*?)<\/span>/g)], r = [...o.matchAll(/\?trembed=(\d+)(?:&#038;|&)trid=(\d+)(?:&#038;|&)trtype=(\d+)/g)];
     if (r.length === 0 || a.length === 0)
       return [];
     let n = r[0][2], c = r[0][3], i = a.sort(([, , u], [, , x]) => {
@@ -155,7 +155,7 @@ function tt(e, t) {
     for (let [, u, x] of i) {
       let $ = x.replace(/<[^>]+>/g, "").trim().split("-").pop().trim().toLowerCase(), g = j[$] || $;
       try {
-        let { data: m } = yield d.default.get(`${E}/?trembed=${u}&trid=${n}&trtype=${c}`, { timeout: 8e3, headers: S(f({}, M), { Referer: e }) }), A = (l = m.match(/<iframe[^>]*src="(https?:\/\/fastream\.to\/[^"]+)"/)) == null ? void 0 : l[1];
+        let { data: m } = yield d.default.get(`${E}/?trembed=${u}&trid=${n}&trtype=${c}`, { timeout: 8e3, headers: S(f({}, M), { Referer: e }) }), A = (l = m.match(/<iframe[^>]*src="(https?:\/\/fastream\.to\/[^"]+)"/i)) == null ? void 0 : l[1];
         if (!A)
           continue;
         let h = yield k(A);
