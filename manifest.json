@@ -56,6 +56,17 @@
       "filename": "providers/xupalace.js",
       "enabled": true,
       "contentLanguage": ["es"]
+    },
+    {
+      "id": "seriesmetro",
+      "name": "SeriesMetro",
+      "description": "Streams en Latino desde SeriesMetro. Fastream.",
+      "version": "1.0.0",
+      "author": "KennethJYS",
+      "supportedTypes": ["movie", "tv"],
+      "filename": "providers/seriesmetro.js",
+      "enabled": true,
+      "contentLanguage": ["es"]
     }
   ]
 }

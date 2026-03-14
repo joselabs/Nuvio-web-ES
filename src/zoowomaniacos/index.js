@@ -166,9 +166,9 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
       console.log(`[Zoowomaniacos] Archive.org directo: ${url.substring(0, 60)}...`);
       streams.push({
         name: 'Zoowomaniacos',
-        title: 'Archive.org',
+        title: 'SD · Archive.org',
         url: url,
-        quality: '1080p',
+        quality: 'SD',
         headers: { 'User-Agent': UA },
       });
     }
