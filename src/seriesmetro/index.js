@@ -16,7 +16,6 @@ const HEADERS = {
   'Upgrade-Insecure-Requests': '1',
 };
 
-// Prioridad de idiomas: Latino primero
 const LANG_PRIORITY = ['latino', 'lat', 'castellano', 'español', 'esp', 'vose', 'sub', 'subtitulado'];
 
 const LANG_MAP = {
@@ -40,65 +39,75 @@ function buildSlug(title) {
 }
 
 // ============================================================================
-// TMDB
+// TMDB — 3 idiomas en paralelo
 // ============================================================================
 async function getTmdbData(tmdbId, mediaType) {
-  const attempts = [
+  const langs = [
     { lang: 'es-MX', name: 'Latino' },
     { lang: 'es-ES', name: 'España' },
     { lang: 'en-US', name: 'Inglés' },
   ];
 
-  for (const { lang, name } of attempts) {
-    try {
-      const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=${lang}`;
-      const { data } = await axios.get(url, { timeout: 5000 });
-      const title = mediaType === 'movie' ? data.title : data.name;
-      const originalTitle = mediaType === 'movie' ? data.original_title : data.original_name;
+  const results = await Promise.allSettled(langs.map(({ lang }) =>
+    axios.get(`https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=${lang}`, { timeout: 5000 })
+      .then(r => ({ lang, data: r.data }))
+  ));
 
-      if (lang === 'es-MX' && /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(title)) continue;
-
-      console.log(`[SeriesMetro] TMDB (${name}): "${title}"`);
-      return { title, originalTitle };
-    } catch (e) {
-      console.log(`[SeriesMetro] Error TMDB ${name}: ${e.message}`);
-    }
+  const byLang = {};
+  for (const r of results) {
+    if (r.status === 'fulfilled') byLang[r.value.lang] = r.value.data;
   }
-  return null;
+
+  const getTitle = (d) => d ? (mediaType === 'movie' ? d.title : d.name) : null;
+  const getOriginal = (d) => d ? (mediaType === 'movie' ? d.original_title : d.original_name) : null;
+
+  const mxTitle = getTitle(byLang['es-MX']);
+  const esTitle = getTitle(byLang['es-ES']);
+  const enTitle = getTitle(byLang['en-US']);
+  const originalTitle = getOriginal(byLang['en-US']) || getOriginal(byLang['es-MX']);
+
+  // Título principal: latino si no es japonés/chino/coreano, si no inglés
+  let title = mxTitle;
+  if (!title || /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(title)) title = enTitle;
+  if (!title) title = esTitle;
+  if (!title) return null;
+
+  console.log(`[SeriesMetro] TMDB: "${title}"${esTitle && esTitle !== title ? ` | ES: "${esTitle}"` : ''}`);
+  return { title, originalTitle, esTitle, enTitle };
 }
 
 // ============================================================================
 // BUSCAR URL POR SLUG DIRECTO
 // ============================================================================
 async function findContentUrl(tmdbInfo, mediaType) {
-  const { title, originalTitle } = tmdbInfo;
+  const { title, originalTitle, esTitle, enTitle } = tmdbInfo;
   const category = mediaType === 'movie' ? 'pelicula' : 'serie';
 
-  // Probar título latino y título original en orden
   const slugs = [];
   if (title) slugs.push(buildSlug(title));
   if (originalTitle && originalTitle !== title) slugs.push(buildSlug(originalTitle));
+  if (esTitle && esTitle !== title && esTitle !== originalTitle) slugs.push(buildSlug(esTitle));
+  if (enTitle && enTitle !== title && enTitle !== originalTitle && enTitle !== esTitle) slugs.push(buildSlug(enTitle));
+  // Filtrar slugs vacíos y duplicados
+  const uniqueSlugs = [...new Set(slugs.filter(s => s.length > 0))];
+  const results = await Promise.allSettled(uniqueSlugs.map(slug =>
+    axios.get(`${BASE}/${category}/${slug}/`, { timeout: 8000, headers: HEADERS })
+      .then(({ data }) => {
+        if (data.includes('trembed=') || data.includes('data-post='))
+          return { url: `${BASE}/${category}/${slug}/`, html: data };
+        return null;
+      })
+  ));
 
-  for (const slug of slugs) {
-    const url = `${BASE}/${category}/${slug}/`;
-    try {
-      const { data } = await axios.get(url, {
-        timeout: 8000,
-        headers: HEADERS,
-      });
-      if (data.includes('trembed=') || data.includes('data-post=')) {
-        console.log(`[SeriesMetro] ✓ Encontrado: /${category}/${slug}/`);
-        return { url, html: data };
-      }
-    } catch (e) {
-      console.log(`[SeriesMetro] Error fetch ${url}: ${e.message}`);
+  for (const r of results) {
+    if (r.status === 'fulfilled' && r.value) {
+      console.log(`[SeriesMetro] ✓ Encontrado: ${r.value.url}`);
+      return r.value;
     }
   }
-
   console.log('[SeriesMetro] No encontrado por slug');
   return null;
 }
-
 // ============================================================================
 // EPISODIOS
 // ============================================================================
@@ -134,7 +143,6 @@ async function extractStreams(pageUrl, referer) {
   const trid = trids[0][2];
   const trtype = trids[0][3];
 
-  // Ordenar opciones por prioridad de idioma
   const sorted = options.sort(([, , a], [, , b]) => {
     const aLang = a.replace(/<[^>]+>/g, '').split('-').pop().trim().toLowerCase();
     const bLang = b.replace(/<[^>]+>/g, '').split('-').pop().trim().toLowerCase();
@@ -170,7 +178,6 @@ async function extractStreams(pageUrl, referer) {
         headers: stream.headers,
       });
 
-      // Si ya tenemos Latino, no seguir
       if (lang === 'Latino') {
         console.log('[SeriesMetro] Latino encontrado, retornando');
         return streams;
