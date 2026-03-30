@@ -9,11 +9,14 @@ export function normalizeResolution(width, height) {
 }
 
 export async function detectQuality(m3u8Url, headers = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3000);
   try {
     const res = await fetch(m3u8Url, {
       headers: { 'User-Agent': UA, ...headers },
-      signal: AbortSignal.timeout(3000),
+      signal: controller.signal,
     });
+    clearTimeout(timer);
     const data = await res.text();
 
     if (!data.includes('#EXT-X-STREAM-INF')) {
@@ -33,6 +36,7 @@ export async function detectQuality(m3u8Url, headers = {}) {
 
     return bestHeight > 0 ? normalizeResolution(bestWidth, bestHeight) : '1080p';
   } catch (e) {
+    clearTimeout(timer);
     return '1080p';
   }
 }

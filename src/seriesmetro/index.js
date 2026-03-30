@@ -27,23 +27,39 @@ const LANG_MAP = {
 // FETCH HELPER
 // ============================================================================
 async function fetchText(url, options = {}) {
-  const res = await fetch(url, {
-    ...options,
-    headers: { ...HEADERS, ...options.headers },
-    signal: AbortSignal.timeout(options.timeout || 8000),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.text();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), options.timeout || 8000);
+  try {
+    const res = await fetch(url, {
+      ...options,
+      headers: { ...HEADERS, ...options.headers },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.text();
+  } catch(e) {
+    clearTimeout(timer);
+    throw e;
+  }
 }
 
 async function fetchJson(url, options = {}) {
-  const res = await fetch(url, {
-    ...options,
-    headers: { 'User-Agent': UA, 'Accept': 'application/json', ...options.headers },
-    signal: AbortSignal.timeout(options.timeout || 5000),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), options.timeout || 5000);
+  try {
+    const res = await fetch(url, {
+      ...options,
+      headers: { 'User-Agent': UA, 'Accept': 'application/json', ...options.headers },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  } catch(e) {
+    clearTimeout(timer);
+    throw e;
+  }
 }
 
 // ============================================================================
@@ -134,13 +150,20 @@ async function getEpisodeUrl(serieUrl, serieHtml, season, episode) {
   const dpost = serieHtml.match(/data-post="(\d+)"/)?.[1];
   if (!dpost) throw new Error('No dpost found');
 
-  const res = await fetch(`${BASE}/wp-admin/admin-ajax.php`, {
-    method: 'POST',
-    headers: { ...HEADERS, 'Content-Type': 'application/x-www-form-urlencoded', 'Referer': serieUrl },
-    body: new URLSearchParams({ action: 'action_select_season', post: dpost, season: String(season) }),
-    signal: AbortSignal.timeout(8000),
-  });
-  const epData = await res.text();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  let epData;
+  try {
+    const res = await fetch(`${BASE}/wp-admin/admin-ajax.php`, {
+      method: 'POST',
+      headers: { ...HEADERS, 'Content-Type': 'application/x-www-form-urlencoded', 'Referer': serieUrl },
+      body: new URLSearchParams({ action: 'action_select_season', post: dpost, season: String(season) }),
+      signal: controller.signal,
+    });
+    epData = await res.text();
+  } finally {
+    clearTimeout(timer);
+  }
 
   const epUrls = [...epData.matchAll(/href="([^"]+\/capitulo\/[^"]+)"/g)].map(m => m[1]);
 
