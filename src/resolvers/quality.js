@@ -1,6 +1,3 @@
-// src/resolvers/quality.js
-import axios from 'axios';
-
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
 export function normalizeResolution(width, height) {
@@ -13,30 +10,24 @@ export function normalizeResolution(width, height) {
 
 export async function detectQuality(m3u8Url, headers = {}) {
   try {
-    const { data } = await axios.get(m3u8Url, {
-      timeout: 3000,
+    const res = await fetch(m3u8Url, {
       headers: { 'User-Agent': UA, ...headers },
-      responseType: 'text'
+      signal: AbortSignal.timeout(3000),
     });
+    const data = await res.text();
 
     if (!data.includes('#EXT-X-STREAM-INF')) {
-      // No es master — intentar sacar resolución de la URL
       const match = m3u8Url.match(/[_-](\d{3,4})p/);
       return match ? `${match[1]}p` : '1080p';
     }
 
-    let bestWidth = 0;
-    let bestHeight = 0;
+    let bestWidth = 0, bestHeight = 0;
     const lines = data.split('\n');
     for (const line of lines) {
       const m = line.match(/RESOLUTION=(\d+)x(\d+)/);
       if (m) {
-        const w = parseInt(m[1]);
-        const h = parseInt(m[2]);
-        if (h > bestHeight) {
-          bestHeight = h;
-          bestWidth = w;
-        }
+        const w = parseInt(m[1]), h = parseInt(m[2]);
+        if (h > bestHeight) { bestHeight = h; bestWidth = w; }
       }
     }
 

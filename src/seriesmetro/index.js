@@ -1,4 +1,3 @@
-import axios from 'axios';
 import { resolveFastream } from '../resolvers/fastream.js';
 
 // ============================================================================
@@ -25,6 +24,29 @@ const LANG_MAP = {
 };
 
 // ============================================================================
+// FETCH HELPER
+// ============================================================================
+async function fetchText(url, options = {}) {
+  const res = await fetch(url, {
+    ...options,
+    headers: { ...HEADERS, ...options.headers },
+    signal: AbortSignal.timeout(options.timeout || 8000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.text();
+}
+
+async function fetchJson(url, options = {}) {
+  const res = await fetch(url, {
+    ...options,
+    headers: { 'User-Agent': UA, 'Accept': 'application/json', ...options.headers },
+    signal: AbortSignal.timeout(options.timeout || 5000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+// ============================================================================
 // UTILIDADES
 // ============================================================================
 function buildSlug(title) {
@@ -42,15 +64,11 @@ function buildSlug(title) {
 // TMDB — 3 idiomas en paralelo
 // ============================================================================
 async function getTmdbData(tmdbId, mediaType) {
-  const langs = [
-    { lang: 'es-MX', name: 'Latino' },
-    { lang: 'es-ES', name: 'España' },
-    { lang: 'en-US', name: 'Inglés' },
-  ];
+  const langs = ['es-MX', 'es-ES', 'en-US'];
 
-  const results = await Promise.allSettled(langs.map(({ lang }) =>
-    axios.get(`https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=${lang}`, { timeout: 5000 })
-      .then(r => ({ lang, data: r.data }))
+  const results = await Promise.allSettled(langs.map(lang =>
+    fetchJson(`https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=${lang}`, { timeout: 5000 })
+      .then(data => ({ lang, data }))
   ));
 
   const byLang = {};
@@ -66,7 +84,6 @@ async function getTmdbData(tmdbId, mediaType) {
   const enTitle = getTitle(byLang['en-US']);
   const originalTitle = getOriginal(byLang['en-US']) || getOriginal(byLang['es-MX']);
 
-  // Título principal: latino si no es japonés/chino/coreano, si no inglés
   let title = mxTitle;
   if (!title || /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(title)) title = enTitle;
   if (!title) title = esTitle;
@@ -88,11 +105,12 @@ async function findContentUrl(tmdbInfo, mediaType) {
   if (originalTitle && originalTitle !== title) slugs.push(buildSlug(originalTitle));
   if (esTitle && esTitle !== title && esTitle !== originalTitle) slugs.push(buildSlug(esTitle));
   if (enTitle && enTitle !== title && enTitle !== originalTitle && enTitle !== esTitle) slugs.push(buildSlug(enTitle));
-  // Filtrar slugs vacíos y duplicados
+
   const uniqueSlugs = [...new Set(slugs.filter(s => s.length > 0))];
+
   const results = await Promise.allSettled(uniqueSlugs.map(slug =>
-    axios.get(`${BASE}/${category}/${slug}/`, { timeout: 8000, headers: HEADERS })
-      .then(({ data }) => {
+    fetchText(`${BASE}/${category}/${slug}/`)
+      .then(data => {
         if (data.includes('trembed=') || data.includes('data-post='))
           return { url: `${BASE}/${category}/${slug}/`, html: data };
         return null;
@@ -108,6 +126,7 @@ async function findContentUrl(tmdbInfo, mediaType) {
   console.log('[SeriesMetro] No encontrado por slug');
   return null;
 }
+
 // ============================================================================
 // EPISODIOS
 // ============================================================================
@@ -115,11 +134,13 @@ async function getEpisodeUrl(serieUrl, serieHtml, season, episode) {
   const dpost = serieHtml.match(/data-post="(\d+)"/)?.[1];
   if (!dpost) throw new Error('No dpost found');
 
-  const { data: epData } = await axios.post(
-    `${BASE}/wp-admin/admin-ajax.php`,
-    new URLSearchParams({ action: 'action_select_season', post: dpost, season: String(season) }),
-    { headers: { ...HEADERS, 'Content-Type': 'application/x-www-form-urlencoded', 'Referer': serieUrl } }
-  );
+  const res = await fetch(`${BASE}/wp-admin/admin-ajax.php`, {
+    method: 'POST',
+    headers: { ...HEADERS, 'Content-Type': 'application/x-www-form-urlencoded', 'Referer': serieUrl },
+    body: new URLSearchParams({ action: 'action_select_season', post: dpost, season: String(season) }),
+    signal: AbortSignal.timeout(8000),
+  });
+  const epData = await res.text();
 
   const epUrls = [...epData.matchAll(/href="([^"]+\/capitulo\/[^"]+)"/g)].map(m => m[1]);
 
@@ -133,7 +154,7 @@ async function getEpisodeUrl(serieUrl, serieHtml, season, episode) {
 // STREAMS CON CASCADA DE IDIOMAS
 // ============================================================================
 async function extractStreams(pageUrl, referer) {
-  const { data } = await axios.get(pageUrl, { timeout: 8000, headers: { ...HEADERS, 'Referer': referer } });
+  const data = await fetchText(pageUrl, { headers: { 'Referer': referer } });
 
   const options = [...data.matchAll(/href="#options-(\d+)"[^>]*>[\s\S]*?<span class="server">([\s\S]*?)<\/span>/g)];
   const trids = [...data.matchAll(/\?trembed=(\d+)(?:&#038;|&)trid=(\d+)(?:&#038;|&)trtype=(\d+)/g)];
@@ -159,10 +180,9 @@ async function extractStreams(pageUrl, referer) {
     const lang = LANG_MAP[langRaw] || langRaw;
 
     try {
-      const { data: embedPage } = await axios.get(
-        `${BASE}/?trembed=${idx}&trid=${trid}&trtype=${trtype}`,
-        { timeout: 8000, headers: { ...HEADERS, 'Referer': pageUrl } }
-      );
+      const embedPage = await fetchText(`${BASE}/?trembed=${idx}&trid=${trid}&trtype=${trtype}`, {
+        headers: { 'Referer': pageUrl }
+      });
 
       const fastreamUrl = embedPage.match(/<iframe[^>]*src="(https?:\/\/fastream\.to\/[^"]+)"/i)?.[1];
       if (!fastreamUrl) continue;
