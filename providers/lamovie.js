@@ -39,9 +39,9 @@ var d = (e, t, o) => new Promise((r, n) => {
 var Ke = {};
 $e(Ke, { getStreams: () => Ge });
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { getStreams };
+  module.exports = { getStreams: Ge };
 } else {
-  global.getStreams = getStreams;
+  global.getStreams = Ge;
 }
 var N = S(require("axios"));
 var re = S(require("axios"));
