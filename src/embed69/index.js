@@ -36,13 +36,27 @@ const SERVER_LABELS = {
 
 const LANG_PRIORITY = ['LAT', 'ESP', 'SUB'];
 
+function b64decode(str) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+  let output = '';
+  str = String(str).replace(/[=]+$/, '');
+  for (let bc = 0, bs = 0, buffer, i = 0;
+    buffer = str.charAt(i++);
+    ~buffer && (bs = bc % 4 ? bs * 64 + buffer : buffer, bc++ % 4)
+      ? output += String.fromCharCode(255 & bs >> (-2 * bc & 6))
+      : 0) {
+    buffer = chars.indexOf(buffer);
+  }
+  return output;
+}
+
 function decodeJwtPayload(token) {
   try {
     const parts = token.split('.');
     if (parts.length < 2) return null;
     let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
     payload += '='.repeat((4 - payload.length % 4) % 4);
-    return JSON.parse(atob(payload));
+    return JSON.parse(b64decode(payload));
   } catch {
     return null;
   }
