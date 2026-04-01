@@ -119,7 +119,7 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
     const html = await res.text();
 
     const dataLink = parseDataLink(html);
-    console.log('[Embed69] dataLink raw:', dataLink ? 'OK' : 'NULL');
+    console.error('[Embed69] dataLink raw:', dataLink ? 'OK' : 'NULL');
     if (!dataLink || dataLink.length === 0) {
       console.log('[Embed69] No se encontró dataLink en el HTML');
       return [];
@@ -137,19 +137,19 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
       const embeds = [];
       for (const embed of (section.sortedEmbeds || [])) {
         if (embed.servername === 'download') continue;
-        console.log('[Embed69] JWT raw:', embed.link?.substring(0, 50));
+        console.error('[Embed69] JWT raw:', embed.link?.substring(0, 50));
         const payload = decodeJwtPayload(embed.link);
         if (!payload) {
-          console.log('[Embed69] ❌ JWT decode FAILED');
+          console.error('[Embed69] ❌ JWT decode FAILED');
         } else {
-          console.log('[Embed69] ✅ JWT decode OK:', payload.link?.substring(0, 60));
+          console.error('[Embed69] ✅ JWT decode OK:', payload.link?.substring(0, 60));
         }
         if (!payload || !payload.link) continue;
         const resolver = getResolver(payload.link);
         if (!resolver) {
-          console.log('[Embed69] ❌ No resolver match for:', payload.link);
+          console.error('[Embed69] ❌ No resolver match for:', payload.link);
         } else {
-          console.log('[Embed69] ✅ Resolver encontrado');
+          console.error('[Embed69] ✅ Resolver encontrado');
         }
         if (!resolver) {
           console.log(`[Embed69] Sin resolver para ${embed.servername}: ${payload.link.substring(0, 60)}`);
@@ -161,7 +161,7 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
     }
 
     async function resolveBatch(embeds) {
-      console.log('[Embed69] resolveBatch START');
+      console.error('[Embed69] resolveBatch START');
       const results = await Promise.allSettled(
         embeds.map(({ url, resolver, lang, servername }) =>
           Promise.race([
@@ -172,7 +172,7 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
           ])
         )
       );
-      console.log('[Embed69] resolveBatch DONE:', results.length);
+      console.error('[Embed69] resolveBatch DONE:', results.length);
       return results
         .filter(r => r.status === 'fulfilled' && r.value?.url)
         .map(r => r.value);
@@ -187,7 +187,7 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
       if (embeds.length === 0) continue;
 
       console.log(`[Embed69] Resolviendo ${embeds.length} embeds (${lang})...`);
-      console.log(`[Embed69] Intentando resolver ${embeds.length} embeds`);
+      console.error(`[Embed69] Intentando resolver ${embeds.length} embeds`);
       const resolved = await resolveBatch(embeds);
 
       if (resolved.length > 0) {
