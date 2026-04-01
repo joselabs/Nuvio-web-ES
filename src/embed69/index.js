@@ -36,13 +36,44 @@ const SERVER_LABELS = {
 
 const LANG_PRIORITY = ['LAT', 'ESP', 'SUB'];
 
+// === POLYFILL PURO (sin atob) ===
+function decodeBase64(input) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+  let output = '';
+  let i = 0;
+  input = input.replace(/[^A-Za-z0-9+/=]/g, '');
+
+  while (i < input.length) {
+    const enc1 = chars.indexOf(input.charAt(i++));
+    const enc2 = chars.indexOf(input.charAt(i++));
+    const enc3 = chars.indexOf(input.charAt(i++));
+    const enc4 = chars.indexOf(input.charAt(i++));
+
+    const chr1 = (enc1 << 2) | (enc2 >> 4);
+    const chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
+    const chr3 = ((enc3 & 3) << 6) | enc4;
+
+    output += String.fromCharCode(chr1);
+    if (enc3 !== 64) output += String.fromCharCode(chr2);
+    if (enc4 !== 64) output += String.fromCharCode(chr3);
+  }
+  return output;
+}
+
 function decodeJwtPayload(token) {
   try {
     const parts = token.split('.');
     if (parts.length < 2) return null;
-    let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+
+    let payload = parts[1]
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
+
+    // padding base64
     payload += '='.repeat((4 - payload.length % 4) % 4);
-    return JSON.parse(atob(payload));
+
+    const decoded = decodeBase64(payload);
+    return JSON.parse(decoded);
   } catch {
     return null;
   }
@@ -119,7 +150,6 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
     const html = await res.text();
 
     const dataLink = parseDataLink(html);
-    console.error('[Embed69] dataLink raw:', dataLink ? 'OK' : 'NULL');
     if (!dataLink || dataLink.length === 0) {
       console.log('[Embed69] No se encontró dataLink en el HTML');
       return [];
@@ -137,31 +167,16 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
       const embeds = [];
       for (const embed of (section.sortedEmbeds || [])) {
         if (embed.servername === 'download') continue;
-        console.error('[Embed69] JWT raw:', embed.link?.substring(0, 50));
         const payload = decodeJwtPayload(embed.link);
-        if (!payload) {
-          console.error('[Embed69] ❌ JWT decode FAILED');
-        } else {
-          console.error('[Embed69] ✅ JWT decode OK:', payload.link?.substring(0, 60));
-        }
         if (!payload || !payload.link) continue;
         const resolver = getResolver(payload.link);
-        if (!resolver) {
-          console.error('[Embed69] ❌ No resolver match for:', payload.link);
-        } else {
-          console.error('[Embed69] ✅ Resolver encontrado');
-        }
-        if (!resolver) {
-          console.log(`[Embed69] Sin resolver para ${embed.servername}: ${payload.link.substring(0, 60)}`);
-          continue;
-        }
+        if (!resolver) continue;
         embeds.push({ url: payload.link, resolver, lang, servername: embed.servername });
       }
       return embeds;
     }
 
     async function resolveBatch(embeds) {
-      console.error('[Embed69] resolveBatch START');
       const results = await Promise.allSettled(
         embeds.map(({ url, resolver, lang, servername }) =>
           Promise.race([
@@ -172,7 +187,6 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
           ])
         )
       );
-      console.error('[Embed69] resolveBatch DONE:', results.length);
       return results
         .filter(r => r.status === 'fulfilled' && r.value?.url)
         .map(r => r.value);
@@ -187,7 +201,6 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
       if (embeds.length === 0) continue;
 
       console.log(`[Embed69] Resolviendo ${embeds.length} embeds (${lang})...`);
-      console.error(`[Embed69] Intentando resolver ${embeds.length} embeds`);
       const resolved = await resolveBatch(embeds);
 
       if (resolved.length > 0) {
@@ -202,10 +215,8 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
             headers: headers || {},
           });
         }
-        console.log(`[Embed69] ✓ Streams encontrados en ${lang}, omitiendo idiomas de menor prioridad`);
+        console.log(`[Embed69] ✓ Streams encontrados en ${lang}`);
         break;
-      } else {
-        console.log(`[Embed69] Sin streams en ${lang}, intentando siguiente idioma...`);
       }
     }
 
