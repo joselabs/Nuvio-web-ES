@@ -6,6 +6,8 @@ const args = process.argv.slice(2);
 const minify = args.includes('--minify');
 const filteredArgs = args.filter(a => a !== '--minify');
 
+const EXTERNAL_MODULES = ['crypto-js'];
+
 async function buildProvider(name) {
   const srcDir = path.join(__dirname, 'src', name);
   const outFile = path.join(__dirname, 'providers', `${name}.js`);
@@ -19,27 +21,21 @@ async function buildProvider(name) {
 
   console.log(`[build] Building ${name}...`);
 
-  await esbuild.build({
+  const result = await esbuild.build({
     entryPoints: [path.join(srcDir, 'index.js')],
     bundle: true,
     outfile: outFile,
-    platform: 'neutral',
+    platform: 'node',
     format: 'cjs',
     target: ['es2016'],
     minify,
-    external: ['axios', 'crypto-js'],
-    define: {},
+    external: EXTERNAL_MODULES,
+    logLevel: 'warning',
   });
 
-  // Transpilar async/await para Hermes
-  const code = fs.readFileSync(outFile, 'utf8');
-  const transpiled = await esbuild.transform(code, {
-    target: 'es2016',
-    loader: 'js',
-  });
-
-  fs.writeFileSync(outFile, transpiled.code);
-  console.log(`[build] ✓ ${outFile} (${(transpiled.code.length / 1024).toFixed(1)} KB)`);
+  const stats = fs.statSync(outFile);
+  const sizeKB = (stats.size / 1024).toFixed(1);
+  console.log(`[build] ✓ ${outFile} (${sizeKB} KB)`);
 }
 
 async function main() {

@@ -1,6 +1,3 @@
-// resolvers/hlswish.js
-import axios from 'axios';
-
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
 function unpackEval(payload, radix, symtab) {
@@ -37,7 +34,7 @@ function extractHlsUrl(unpacked, embedHost) {
       }
     }
   }
-  const m3u8Match = unpacked.match(/["']([^"']{30,}\.m3u8[^"']*)['"]/i);
+  const m3u8Match = unpacked.match(/["']([^"']{30,}\.m3u8[^"']*)["']/i);
   if (m3u8Match) {
     const url = m3u8Match[1];
     return url.startsWith('/') ? embedHost + url : url;
@@ -45,15 +42,10 @@ function extractHlsUrl(unpacked, embedHost) {
   return null;
 }
 
-// hglink.to es solo un alias que redirige a vibuxer.com
-// Mapeamos directamente para evitar el redirect
-const DOMAIN_MAP = {
-  'hglink.to': 'vibuxer.com',
-};
+const DOMAIN_MAP = { 'hglink.to': 'vibuxer.com' };
 
 export async function resolve(embedUrl) {
   try {
-    // Reemplazar dominio si está en el mapa
     let fetchUrl = embedUrl;
     for (const [from, to] of Object.entries(DOMAIN_MAP)) {
       if (fetchUrl.includes(from)) {
@@ -66,7 +58,10 @@ export async function resolve(embedUrl) {
     console.log(`[HLSWish] Resolviendo: ${embedUrl}`);
     if (fetchUrl !== embedUrl) console.log(`[HLSWish] → Mapped to: ${fetchUrl}`);
 
-    const resp = await axios.get(fetchUrl, {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+
+    const res = await fetch(fetchUrl, {
       headers: {
         'User-Agent': UA,
         'Referer': 'https://embed69.org/',
@@ -74,10 +69,11 @@ export async function resolve(embedUrl) {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'es-MX,es;q=0.9',
       },
-      timeout: 15000,
-      maxRedirects: 5
+      signal: controller.signal,
     });
-    const data = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
+    clearTimeout(timer);
+
+    const data = await res.text();
 
     // Método 1: file: "..." directo
     const fileMatch = data.match(/file\s*:\s*["']([^"']+)["']/i);
@@ -85,31 +81,22 @@ export async function resolve(embedUrl) {
       let url = fileMatch[1];
       if (url.startsWith('/')) url = embedHost + url;
 
-      // Si es una URL /stream/ de vibuxer, seguir el redirect para obtener el m3u8 real
       if (url.includes('vibuxer.com/stream/')) {
         console.log(`[HLSWish] Siguiendo redirect: ${url.substring(0, 80)}...`);
         try {
-          const redirectResp = await axios.get(url, {
+          const r2 = await fetch(url, {
             headers: { 'User-Agent': UA, 'Referer': embedHost + '/' },
-            timeout: 8000,
-            maxRedirects: 5,
-            validateStatus: s => s < 400,
           });
-          // El redirect puede devolver la URL final en Location o en el body
-          const finalUrl = redirectResp.request?.res?.responseUrl || redirectResp.config?.url;
-          if (finalUrl && finalUrl.includes('.m3u8')) {
-            url = finalUrl;
-          }
-        } catch {
-          // Si falla el redirect, usar la URL original igual
-        }
+          // fetch sigue redirecciones automáticamente; la URL final está en r2.url
+          if (r2.url && r2.url.includes('.m3u8')) url = r2.url;
+        } catch { /* usar URL original */ }
       }
 
       console.log(`[HLSWish] URL encontrada: ${url.substring(0, 80)}...`);
       return { url, quality: '1080p', headers: { 'User-Agent': UA, 'Referer': embedHost + '/' } };
     }
 
-    // Método 2: eval PACKER → extraer hls2/hls3/hls4
+    // Método 2: eval PACKER
     const packMatch = data.match(
       /eval\(function\(p,a,c,k,e,[a-z]\)\{[^}]+\}\s*\('([\s\S]+?)',\s*(\d+),\s*(\d+),\s*'([\s\S]+?)'\.split\('\|'\)/
     );

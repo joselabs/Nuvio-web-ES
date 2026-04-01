@@ -9,14 +9,16 @@ export function normalizeResolution(width, height) {
 }
 
 export async function detectQuality(m3u8Url, headers = {}) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 3000);
   try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+
     const res = await fetch(m3u8Url, {
       headers: { 'User-Agent': UA, ...headers },
       signal: controller.signal,
     });
     clearTimeout(timer);
+
     const data = await res.text();
 
     if (!data.includes('#EXT-X-STREAM-INF')) {
@@ -24,19 +26,23 @@ export async function detectQuality(m3u8Url, headers = {}) {
       return match ? `${match[1]}p` : '1080p';
     }
 
-    let bestWidth = 0, bestHeight = 0;
+    let bestWidth = 0;
+    let bestHeight = 0;
     const lines = data.split('\n');
     for (const line of lines) {
       const m = line.match(/RESOLUTION=(\d+)x(\d+)/);
       if (m) {
-        const w = parseInt(m[1]), h = parseInt(m[2]);
-        if (h > bestHeight) { bestHeight = h; bestWidth = w; }
+        const w = parseInt(m[1]);
+        const h = parseInt(m[2]);
+        if (h > bestHeight) {
+          bestHeight = h;
+          bestWidth = w;
+        }
       }
     }
 
     return bestHeight > 0 ? normalizeResolution(bestWidth, bestHeight) : '1080p';
   } catch (e) {
-    clearTimeout(timer);
     return '1080p';
   }
 }
