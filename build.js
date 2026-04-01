@@ -25,7 +25,7 @@ async function buildProvider(name) {
     entryPoints: [path.join(srcDir, 'index.js')],
     bundle: true,
     outfile: outFile,
-    platform: 'node',
+    platform: 'neutral',
     format: 'cjs',
     target: ['es2016'],
     minify,

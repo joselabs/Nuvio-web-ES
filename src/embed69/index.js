@@ -2,10 +2,10 @@
 // Provider basado en embed69.org — soporta películas y series
 // Flujo: TMDB → IMDB ID → embed69.org/f/{imdb_id} → dataLink (JWT) → resolvers
 
-import { resolve as resolveVoe } from '../resolvers/voe.js';
-import { resolve as resolveFilemoon } from '../resolvers/filemoon.js';
+//import { resolve as resolveVoe } from '../resolvers/voe.js';
+//import { resolve as resolveFilemoon } from '../resolvers/filemoon.js';
 import { resolve as resolveHlswish } from '../resolvers/hlswish.js';
-import { resolve as resolveVidhide } from '../resolvers/vidhide.js';
+//import { resolve as resolveVidhide } from '../resolvers/vidhide.js';
 
 const TMDB_API_KEY = '439c478a771f35c05022f9feabcca01c';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
