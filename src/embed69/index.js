@@ -13,18 +13,18 @@ const BASE_URL = 'https://embed69.org';
 const RESOLVER_TIMEOUT = 4000;
 
 const RESOLVER_MAP = {
-  'voe.sx':           resolveVoe,
+  //'voe.sx':           resolveVoe,
   'hglink.to':        resolveHlswish,
   'streamwish.com':   resolveHlswish,
   'streamwish.to':    resolveHlswish,
   'wishembed.online': resolveHlswish,
   'filelions.com':    resolveHlswish,
-  'bysedikamoum.com': resolveFilemoon,
-  'filemoon.sx':      resolveFilemoon,
-  'filemoon.to':      resolveFilemoon,
-  'moonembed.pro':    resolveFilemoon,
-  'dintezuvio.com':   resolveVidhide,
-  'vidhide.com':      resolveVidhide,
+  //'bysedikamoum.com': resolveFilemoon,
+  //'filemoon.sx':      resolveFilemoon,
+  //'filemoon.to':      resolveFilemoon,
+  //'moonembed.pro':    resolveFilemoon,
+  //'dintezuvio.com':   resolveVidhide,
+  //'vidhide.com':      resolveVidhide,
 };
 
 const SERVER_LABELS = {
