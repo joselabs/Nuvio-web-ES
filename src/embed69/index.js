@@ -49,6 +49,21 @@ const LANG_PRIORITY = ['LAT', 'ESP', 'SUB'];
 
 // Decodifica el payload de un JWT sin verificar firma
 // El payload es base64url standard sin encriptar — podemos leerlo localmente
+const BASE64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+function b64decode(value) {
+  if (!value) return '';
+  let input = String(value).replace(/=+$/, '');
+  let output = '';
+  let bc = 0, bs, buffer, idx = 0;
+  while ((buffer = input.charAt(idx++))) {
+    buffer = BASE64_CHARS.indexOf(buffer);
+    if (~buffer) {
+      bs = bc % 4 ? bs * 64 + buffer : buffer;
+      if (bc++ % 4) output += String.fromCharCode(255 & (bs >> ((-2 * bc) & 6)));
+    }
+  }
+  return output;
+}
 function decodeJwtPayload(token) {
   try {
     const parts = token.split('.');
@@ -56,7 +71,7 @@ function decodeJwtPayload(token) {
     // base64url → base64 standard
     let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
     payload += '='.repeat((4 - payload.length % 4) % 4);
-    return JSON.parse(atob(payload));
+    return JSON.parse(b64decode(payload));
   } catch {
     return null;
   }
@@ -116,7 +131,7 @@ function buildEmbedUrl(imdbId, mediaType, season, episode) {
 // ============================================================================
 // FUNCIÓN PRINCIPAL
 // ============================================================================
-export async function getStreams(tmdbId, mediaType, season, episode) {
+async function getStreams(tmdbId, mediaType, season, episode) {
   if (!tmdbId || !mediaType) return [];
 
   const startTime = Date.now();
@@ -235,3 +250,4 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
     return [];
   }
 }
+module.exports = { getStreams };
