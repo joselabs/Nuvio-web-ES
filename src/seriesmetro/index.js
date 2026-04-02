@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { resolveFastream } from '../resolvers/fastream.js';
 
 // ============================================================================
@@ -15,6 +16,7 @@ const HEADERS = {
   'Upgrade-Insecure-Requests': '1',
 };
 
+// Prioridad de idiomas: Latino primero
 const LANG_PRIORITY = ['latino', 'lat', 'castellano', 'español', 'esp', 'vose', 'sub', 'subtitulado'];
 
 const LANG_MAP = {
@@ -22,45 +24,6 @@ const LANG_MAP = {
   'castellano': 'Español', 'español': 'Español', 'esp': 'Español',
   'vose': 'Subtitulado', 'sub': 'Subtitulado', 'subtitulado': 'Subtitulado',
 };
-
-// ============================================================================
-// FETCH HELPER
-// ============================================================================
-async function fetchText(url, options = {}) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), options.timeout || 8000);
-  try {
-    const res = await fetch(url, {
-      ...options,
-      headers: { ...HEADERS, ...options.headers },
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.text();
-  } catch(e) {
-    clearTimeout(timer);
-    throw e;
-  }
-}
-
-async function fetchJson(url, options = {}) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), options.timeout || 5000);
-  try {
-    const res = await fetch(url, {
-      ...options,
-      headers: { 'User-Agent': UA, 'Accept': 'application/json', ...options.headers },
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
-  } catch(e) {
-    clearTimeout(timer);
-    throw e;
-  }
-}
 
 // ============================================================================
 // UTILIDADES
@@ -77,68 +40,61 @@ function buildSlug(title) {
 }
 
 // ============================================================================
-// TMDB — 3 idiomas en paralelo
+// TMDB
 // ============================================================================
 async function getTmdbData(tmdbId, mediaType) {
-  const langs = ['es-MX', 'es-ES', 'en-US'];
+  const attempts = [
+    { lang: 'es-MX', name: 'Latino' },
+    { lang: 'es-ES', name: 'España' },
+    { lang: 'en-US', name: 'Inglés' },
+  ];
 
-  const results = await Promise.allSettled(langs.map(lang =>
-    fetchJson(`https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=${lang}`, { timeout: 5000 })
-      .then(data => ({ lang, data }))
-  ));
+  for (const { lang, name } of attempts) {
+    try {
+      const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=${lang}`;
+      const { data } = await axios.get(url, { timeout: 5000 });
+      const title = mediaType === 'movie' ? data.title : data.name;
+      const originalTitle = mediaType === 'movie' ? data.original_title : data.original_name;
 
-  const byLang = {};
-  for (const r of results) {
-    if (r.status === 'fulfilled') byLang[r.value.lang] = r.value.data;
+      if (lang === 'es-MX' && /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(title)) continue;
+
+      console.log(`[SeriesMetro] TMDB (${name}): "${title}"`);
+      return { title, originalTitle };
+    } catch (e) {
+      console.log(`[SeriesMetro] Error TMDB ${name}: ${e.message}`);
+    }
   }
-
-  const getTitle = (d) => d ? (mediaType === 'movie' ? d.title : d.name) : null;
-  const getOriginal = (d) => d ? (mediaType === 'movie' ? d.original_title : d.original_name) : null;
-
-  const mxTitle = getTitle(byLang['es-MX']);
-  const esTitle = getTitle(byLang['es-ES']);
-  const enTitle = getTitle(byLang['en-US']);
-  const originalTitle = getOriginal(byLang['en-US']) || getOriginal(byLang['es-MX']);
-
-  let title = mxTitle;
-  if (!title || /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(title)) title = enTitle;
-  if (!title) title = esTitle;
-  if (!title) return null;
-
-  console.log(`[SeriesMetro] TMDB: "${title}"${esTitle && esTitle !== title ? ` | ES: "${esTitle}"` : ''}`);
-  return { title, originalTitle, esTitle, enTitle };
+  return null;
 }
 
 // ============================================================================
 // BUSCAR URL POR SLUG DIRECTO
 // ============================================================================
 async function findContentUrl(tmdbInfo, mediaType) {
-  const { title, originalTitle, esTitle, enTitle } = tmdbInfo;
+  const { title, originalTitle } = tmdbInfo;
   const category = mediaType === 'movie' ? 'pelicula' : 'serie';
 
+  // Probar título latino y título original en orden
   const slugs = [];
   if (title) slugs.push(buildSlug(title));
   if (originalTitle && originalTitle !== title) slugs.push(buildSlug(originalTitle));
-  if (esTitle && esTitle !== title && esTitle !== originalTitle) slugs.push(buildSlug(esTitle));
-  if (enTitle && enTitle !== title && enTitle !== originalTitle && enTitle !== esTitle) slugs.push(buildSlug(enTitle));
 
-  const uniqueSlugs = [...new Set(slugs.filter(s => s.length > 0))];
-
-  const results = await Promise.allSettled(uniqueSlugs.map(slug =>
-    fetchText(`${BASE}/${category}/${slug}/`)
-      .then(data => {
-        if (data.includes('trembed=') || data.includes('data-post='))
-          return { url: `${BASE}/${category}/${slug}/`, html: data };
-        return null;
-      })
-  ));
-
-  for (const r of results) {
-    if (r.status === 'fulfilled' && r.value) {
-      console.log(`[SeriesMetro] ✓ Encontrado: ${r.value.url}`);
-      return r.value;
+  for (const slug of slugs) {
+    const url = `${BASE}/${category}/${slug}/`;
+    try {
+      const { data } = await axios.get(url, {
+        timeout: 8000,
+        headers: HEADERS,
+      });
+      if (data.includes('trembed=') || data.includes('data-post=')) {
+        console.log(`[SeriesMetro] ✓ Encontrado: /${category}/${slug}/`);
+        return { url, html: data };
+      }
+    } catch (e) {
+      console.log(`[SeriesMetro] Error fetch ${url}: ${e.message}`);
     }
   }
+
   console.log('[SeriesMetro] No encontrado por slug');
   return null;
 }
@@ -150,20 +106,11 @@ async function getEpisodeUrl(serieUrl, serieHtml, season, episode) {
   const dpost = serieHtml.match(/data-post="(\d+)"/)?.[1];
   if (!dpost) throw new Error('No dpost found');
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
-  let epData;
-  try {
-    const res = await fetch(`${BASE}/wp-admin/admin-ajax.php`, {
-      method: 'POST',
-      headers: { ...HEADERS, 'Content-Type': 'application/x-www-form-urlencoded', 'Referer': serieUrl },
-      body: new URLSearchParams({ action: 'action_select_season', post: dpost, season: String(season) }),
-      signal: controller.signal,
-    });
-    epData = await res.text();
-  } finally {
-    clearTimeout(timer);
-  }
+  const { data: epData } = await axios.post(
+    `${BASE}/wp-admin/admin-ajax.php`,
+    new URLSearchParams({ action: 'action_select_season', post: dpost, season: String(season) }),
+    { headers: { ...HEADERS, 'Content-Type': 'application/x-www-form-urlencoded', 'Referer': serieUrl } }
+  );
 
   const epUrls = [...epData.matchAll(/href="([^"]+\/capitulo\/[^"]+)"/g)].map(m => m[1]);
 
@@ -177,7 +124,7 @@ async function getEpisodeUrl(serieUrl, serieHtml, season, episode) {
 // STREAMS CON CASCADA DE IDIOMAS
 // ============================================================================
 async function extractStreams(pageUrl, referer) {
-  const data = await fetchText(pageUrl, { headers: { 'Referer': referer } });
+  const { data } = await axios.get(pageUrl, { timeout: 8000, headers: { ...HEADERS, 'Referer': referer } });
 
   const options = [...data.matchAll(/href="#options-(\d+)"[^>]*>[\s\S]*?<span class="server">([\s\S]*?)<\/span>/g)];
   const trids = [...data.matchAll(/\?trembed=(\d+)(?:&#038;|&)trid=(\d+)(?:&#038;|&)trtype=(\d+)/g)];
@@ -187,6 +134,7 @@ async function extractStreams(pageUrl, referer) {
   const trid = trids[0][2];
   const trtype = trids[0][3];
 
+  // Ordenar opciones por prioridad de idioma
   const sorted = options.sort(([, , a], [, , b]) => {
     const aLang = a.replace(/<[^>]+>/g, '').split('-').pop().trim().toLowerCase();
     const bLang = b.replace(/<[^>]+>/g, '').split('-').pop().trim().toLowerCase();
@@ -203,9 +151,10 @@ async function extractStreams(pageUrl, referer) {
     const lang = LANG_MAP[langRaw] || langRaw;
 
     try {
-      const embedPage = await fetchText(`${BASE}/?trembed=${idx}&trid=${trid}&trtype=${trtype}`, {
-        headers: { 'Referer': pageUrl }
-      });
+      const { data: embedPage } = await axios.get(
+        `${BASE}/?trembed=${idx}&trid=${trid}&trtype=${trtype}`,
+        { timeout: 8000, headers: { ...HEADERS, 'Referer': pageUrl } }
+      );
 
       const fastreamUrl = embedPage.match(/<iframe[^>]*src="(https?:\/\/fastream\.to\/[^"]+)"/i)?.[1];
       if (!fastreamUrl) continue;
@@ -221,6 +170,7 @@ async function extractStreams(pageUrl, referer) {
         headers: stream.headers,
       });
 
+      // Si ya tenemos Latino, no seguir
       if (lang === 'Latino') {
         console.log('[SeriesMetro] Latino encontrado, retornando');
         return streams;
