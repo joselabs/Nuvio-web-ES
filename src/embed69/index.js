@@ -19,7 +19,7 @@ const RESOLVER_TIMEOUT = 4000;
 // Basado en HTML real de embed69 (Interstellar tt0816692)
 const RESOLVER_MAP = {
   //'voe.sx':           resolveVoe,
-  //'hglink.to':        resolveHlswish,    // streamwish
+  'hglink.to':        resolveHlswish,    // streamwish
   'streamwish.com':   resolveHlswish,
   'streamwish.to':    resolveHlswish,
   'wishembed.online': resolveHlswish,

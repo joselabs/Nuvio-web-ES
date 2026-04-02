@@ -1,6 +1,6 @@
 /**
  * embed69 - Built from src/embed69/
- * Generated: 2026-04-02T02:11:06.346Z
+ * Generated: 2026-04-02T02:15:11.131Z
  */
 var __defProp = Object.defineProperty;
 var __defProps = Object.defineProperties;
@@ -170,7 +170,8 @@ var BASE_URL = "https://embed69.org";
 var RESOLVER_TIMEOUT = 4e3;
 var RESOLVER_MAP = {
   //'voe.sx':           resolveVoe,
-  //'hglink.to':        resolveHlswish,    // streamwish
+  "hglink.to": resolve,
+  // streamwish
   "streamwish.com": resolve,
   "streamwish.to": resolve,
   "wishembed.online": resolve,
