@@ -2,11 +2,10 @@
 // Provider basado en embed69.org — soporta películas y series
 // Flujo: TMDB → IMDB ID → embed69.org/f/{imdb_id} → dataLink (JWT) → resolvers
 
-import axios from 'axios';
-import { resolve as resolveVoe } from '../resolvers/voe.js';
-import { resolve as resolveFilemoon } from '../resolvers/filemoon.js';
+//import { resolve as resolveVoe } from '../resolvers/voe.js';
+//import { resolve as resolveFilemoon } from '../resolvers/filemoon.js';
 import { resolve as resolveHlswish } from '../resolvers/hlswish.js';
-import { resolve as resolveVidhide } from '../resolvers/vidhide.js';
+//import { resolve as resolveVidhide } from '../resolvers/vidhide.js';
 
 // ============================================================================
 // CONFIGURACIÓN
@@ -19,25 +18,25 @@ const RESOLVER_TIMEOUT = 4000;
 // Mapeo de dominio de embed → resolver
 // Basado en HTML real de embed69 (Interstellar tt0816692)
 const RESOLVER_MAP = {
-  'voe.sx':           resolveVoe,
-  'hglink.to':        resolveHlswish,    // streamwish
+  //'voe.sx':           resolveVoe,
+  //'hglink.to':        resolveHlswish,    // streamwish
   'streamwish.com':   resolveHlswish,
   'streamwish.to':    resolveHlswish,
   'wishembed.online': resolveHlswish,
   'filelions.com':    resolveHlswish,
-  'bysedikamoum.com':  resolveFilemoon,  // filemoon alias
-  'filemoon.sx':      resolveFilemoon,
-  'filemoon.to':      resolveFilemoon,
-  'moonembed.pro':    resolveFilemoon,
-  'dintezuvio.com':   resolveVidhide,   // vidhide
-  'vidhide.com':      resolveVidhide,
+  //'bysedikamoum.com':  resolveFilemoon,  // filemoon alias
+  //'filemoon.sx':      resolveFilemoon,
+  //'filemoon.to':      resolveFilemoon,
+  //'moonembed.pro':    resolveFilemoon,
+  //'dintezuvio.com':   resolveVidhide,   // vidhide
+  //'vidhide.com':      resolveVidhide,
 };
 
 const SERVER_LABELS = {
-  'voe':        'VOE',
+  //'voe':        'VOE',
   'streamwish': 'StreamWish',
-  'filemoon':   'Filemoon',
-  'vidhide':    'VidHide',
+  //'filemoon':   'Filemoon',
+  //'vidhide':    'VidHide',
 };
 
 // Prioridad de idioma (menor índice = mayor prioridad)
@@ -109,10 +108,14 @@ async function getImdbId(tmdbId, mediaType) {
     ? `https://api.themoviedb.org/3/movie/${tmdbId}/external_ids?api_key=${TMDB_API_KEY}`
     : `https://api.themoviedb.org/3/tv/${tmdbId}/external_ids?api_key=${TMDB_API_KEY}`;
 
-  const { data } = await axios.get(endpoint, {
-    timeout: 5000,
-    headers: { 'User-Agent': UA }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  const res = await fetch(endpoint, {
+      headers: { 'User-Agent': UA },
+      signal: controller.signal,
   });
+  clearTimeout(timer);
+  const data = await res.json();
   return data.imdb_id || null;
 }
 
@@ -150,14 +153,18 @@ async function getStreams(tmdbId, mediaType, season, episode) {
     const embedUrl = buildEmbedUrl(imdbId, mediaType, season, episode);
     console.log(`[Embed69] Fetching: ${embedUrl}`);
 
-    const { data: html } = await axios.get(embedUrl, {
-      timeout: 8000,
-      headers: {
-        'User-Agent': UA,
-        'Referer': 'https://sololatino.net/',
-        'Accept': 'text/html,application/xhtml+xml'
-      }
+    const controller2 = new AbortController();
+    const timer2 = setTimeout(() => controller2.abort(), 8000);
+    const resp = await fetch(embedUrl, {
+        headers: {
+            'User-Agent': UA,
+            'Referer': 'https://sololatino.net/',
+            'Accept': 'text/html,application/xhtml+xml',
+        },
+        signal: controller2.signal,
     });
+    clearTimeout(timer2);
+    const html = await resp.text();
 
     // 3. Extraer el array dataLink del HTML
     const dataLink = parseDataLink(html);

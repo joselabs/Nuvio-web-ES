@@ -1,4 +1,3 @@
-import axios from 'axios';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
@@ -12,11 +11,14 @@ export function normalizeResolution(width, height) {
 
 export async function detectQuality(m3u8Url, headers = {}) {
   try {
-    const { data } = await axios.get(m3u8Url, {
-      timeout: 3000,
-      headers: { 'User-Agent': UA, ...headers },
-      responseType: 'text'
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch(m3u8Url, {
+        headers: { 'User-Agent': UA, ...headers },
+        signal: controller.signal,
     });
+    clearTimeout(timer);
+    const data = await res.text();
 
     if (!data.includes('#EXT-X-STREAM-INF')) {
       // No es master — intentar sacar resolución de la URL
