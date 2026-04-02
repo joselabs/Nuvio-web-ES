@@ -1,6 +1,6 @@
 /**
  * embed69 - Built from src/embed69/
- * Generated: 2026-04-02T02:15:11.131Z
+ * Generated: 2026-04-02T02:52:10.657Z
  */
 var __defProp = Object.defineProperty;
 var __defProps = Object.defineProperties;
@@ -368,4 +368,8 @@ function getStreams(tmdbId, mediaType, season, episode) {
     }
   });
 }
-module.exports = { getStreams };
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { getStreams };
+} else {
+  global.getStreams = getStreams;
+}
