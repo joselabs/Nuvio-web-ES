@@ -1,6 +1,7 @@
 // src/embed69/index.js
 // Provider basado en embed69.org — soporta películas y series
 // Flujo: TMDB → IMDB ID → embed69.org/f/{imdb_id} → dataLink (JWT) → resolvers
+import 'cheerio-without-node-native';
 
 //import { resolve as resolveVoe } from '../resolvers/voe.js';
 //import { resolve as resolveFilemoon } from '../resolvers/filemoon.js';

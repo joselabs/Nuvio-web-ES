@@ -1,6 +1,6 @@
 /**
  * embed69 - Built from src/embed69/
- * Generated: 2026-04-02T02:52:10.657Z
+ * Generated: 2026-04-02T03:13:44.734Z
  */
 var __defProp = Object.defineProperty;
 var __defProps = Object.defineProperties;
@@ -41,6 +41,9 @@ var __async = (__this, __arguments, generator) => {
     step((generator = generator.apply(__this, __arguments)).next());
   });
 };
+
+// src/embed69/index.js
+var import_cheerio_without_node_native = require("cheerio-without-node-native");
 
 // src/resolvers/hlswish.js
 var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
