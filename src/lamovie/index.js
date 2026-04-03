@@ -1,9 +1,8 @@
 // src/lamovie/index.js
-import axios from 'axios';
-import { resolve as resolveGoodStream } from '../resolvers/goodstream.js';
-import { resolve as resolveVoe } from '../resolvers/voe.js';
-import { resolve as resolveFilemoon } from '../resolvers/filemoon.js';
-import { resolve as resolveHlswish } from '../resolvers/hlswish.js';
+//import { resolve as resolveGoodStream } from '../resolvers/goodstream.js';
+//import { resolve as resolveVoe } from '../resolvers/voe.js';
+//import { resolve as resolveFilemoon } from '../resolvers/filemoon.js';
+//import { resolve as resolveHlswish } from '../resolvers/hlswish.js';
 import { resolve as resolveVimeos } from '../resolvers/vimeos.js';
 
 // ============================================================================
@@ -22,18 +21,35 @@ const GENRE_ANIMATION = 16;
 
 // Servidores soportados y sus resolvers
 const RESOLVERS = {
-  'goodstream.one': resolveGoodStream,
-  'hlswish.com': resolveHlswish,
-  'streamwish.com': resolveHlswish,
-  'streamwish.to': resolveHlswish,
-  'strwish.com': resolveHlswish,
-  'voe.sx': resolveVoe,
-  'filemoon.sx': resolveFilemoon,
-  'filemoon.to': resolveFilemoon,
+  //'goodstream.one': resolveGoodStream,
+  //'hlswish.com': resolveHlswish,
+  //'streamwish.com': resolveHlswish,
+  //'streamwish.to': resolveHlswish,
+  //'strwish.com': resolveHlswish,
+  //'voe.sx': resolveVoe,
+  //'filemoon.sx': resolveFilemoon,
+  //'filemoon.to': resolveFilemoon,
   'vimeos.net': resolveVimeos,
 };
 
 const IGNORED_HOSTS = [];
+
+// Helper para reemplazar axios (solo fetch nativo)
+async function httpGet(url, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), options.timeout || 8000);
+
+  const res = await fetch(url, {
+    headers: { 'User-Agent': UA, ...options.headers },
+    signal: controller.signal,
+    redirect: 'follow',
+  });
+
+  clearTimeout(timer);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const contentType = res.headers.get('content-type') || '';
+  return contentType.includes('json') ? res.json() : res.text();
+}
 
 // ============================================================================
 // UTILIDADES
@@ -125,7 +141,7 @@ async function getTmdbData(tmdbId, mediaType) {
   for (const { lang, name } of attempts) {
     try {
       const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=${lang}`;
-      const { data } = await axios.get(url, { timeout: 5000, headers: HEADERS });
+      const { data } = await httpGet(url, { timeout: 5000, headers: HEADERS });
       const title = mediaType === 'movie' ? data.title : data.name;
       const originalTitle = mediaType === 'movie' ? data.original_title : data.original_name;
 
@@ -169,7 +185,7 @@ function extractIdFromHtml(html) {
 async function getIdBySlug(category, slug) {
   const url = `${BASE_URL}/${category}/${slug}/`;
   try {
-    const { data: html } = await axios.get(url, {
+    const { data: html } = await httpGet(url, {
       timeout: 8000,
       headers: HTML_HEADERS,
       validateStatus: s => s === 200,
@@ -218,7 +234,7 @@ async function findBySlug(tmdbInfo, mediaType) {
 async function getEpisodeId(seriesId, seasonNum, episodeNum) {
   const url = `${BASE_URL}/wp-api/v1/single/episodes/list?_id=${seriesId}&season=${seasonNum}&page=1&postsPerPage=50`;
   try {
-    const { data } = await axios.get(url, { timeout: 12000, headers: HEADERS });
+    const { data } = await httpGet(url, { timeout: 12000, headers: HEADERS });
     if (!data?.data?.posts) return null;
     const ep = data.data.posts.find(e => e.season_number == seasonNum && e.episode_number == episodeNum);
     return ep?._id || null;
@@ -292,7 +308,7 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
     }
 
     // 4. Obtener enlaces
-    const { data } = await axios.get(
+    const { data } = await httpGet(
       `${BASE_URL}/wp-api/v1/player?postId=${targetId}&demo=0`,
       { timeout: 6000, headers: HEADERS }
     );

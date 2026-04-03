@@ -1,4 +1,4 @@
-import axios from 'axios';
+// src/resolvers/vimeos.js
 import { detectQuality } from './quality.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
@@ -7,17 +7,25 @@ export async function resolve(embedUrl) {
   try {
     console.log(`[Vimeos] Resolviendo: ${embedUrl}`);
 
-    const resp = await axios.get(embedUrl, {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+
+    const resp = await fetch(embedUrl, {
       headers: {
         'User-Agent': UA,
         'Referer': 'https://vimeos.net/',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
       },
-      timeout: 15000,
-      maxRedirects: 5
+      signal: controller.signal,
+      redirect: 'follow',
     });
 
-    const data = resp.data;
+    clearTimeout(timer);
+
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    const data = await resp.text();
+
     const packMatch = data.match(
       /eval\(function\(p,a,c,k,e,[dr]\)\{[\s\S]+?\}\('([\s\S]+?)',(\d+),(\d+),'([\s\S]+?)'\.split\('\|'\)/
     );
@@ -27,11 +35,15 @@ export async function resolve(embedUrl) {
       const radix = parseInt(packMatch[2]);
       const symtab = packMatch[4].split('|');
       const chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
       const unbase = (str) => {
         let result = 0;
-        for (let i = 0; i < str.length; i++) result = result * radix + chars.indexOf(str[i]);
+        for (let i = 0; i < str.length; i++) {
+          result = result * radix + chars.indexOf(str[i]);
+        }
         return result;
       };
+
       const unpacked = payload.replace(/\b(\w+)\b/g, (match) => {
         const idx = unbase(match);
         return (symtab[idx] && symtab[idx] !== '') ? symtab[idx] : match;
