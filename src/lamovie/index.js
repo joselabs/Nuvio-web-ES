@@ -141,7 +141,7 @@ async function getTmdbData(tmdbId, mediaType) {
   for (const { lang, name } of attempts) {
     try {
       const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=${lang}`;
-      const { data } = await httpGet(url, { timeout: 5000, headers: HEADERS });
+      const data = await httpGet(url, { timeout: 5000, headers: HEADERS });
       const title = mediaType === 'movie' ? data.title : data.name;
       const originalTitle = mediaType === 'movie' ? data.original_title : data.original_name;
 
@@ -185,7 +185,7 @@ function extractIdFromHtml(html) {
 async function getIdBySlug(category, slug) {
   const url = `${BASE_URL}/${category}/${slug}/`;
   try {
-    const { data: html } = await httpGet(url, {
+    const html = await httpGet(url, {
       timeout: 8000,
       headers: HTML_HEADERS,
       validateStatus: s => s === 200,
@@ -234,7 +234,7 @@ async function findBySlug(tmdbInfo, mediaType) {
 async function getEpisodeId(seriesId, seasonNum, episodeNum) {
   const url = `${BASE_URL}/wp-api/v1/single/episodes/list?_id=${seriesId}&season=${seasonNum}&page=1&postsPerPage=50`;
   try {
-    const { data } = await httpGet(url, { timeout: 12000, headers: HEADERS });
+    const data = await httpGet(url, { timeout: 12000, headers: HEADERS });
     if (!data?.data?.posts) return null;
     const ep = data.data.posts.find(e => e.season_number == seasonNum && e.episode_number == episodeNum);
     return ep?._id || null;
@@ -308,7 +308,7 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
     }
 
     // 4. Obtener enlaces
-    const { data } = await httpGet(
+    const data = await httpGet(
       `${BASE_URL}/wp-api/v1/player?postId=${targetId}&demo=0`,
       { timeout: 6000, headers: HEADERS }
     );
