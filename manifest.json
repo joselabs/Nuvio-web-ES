@@ -10,7 +10,7 @@
       "author": "KennethJYS",
       "supportedTypes": ["movie", "tv"],
       "filename": "providers/lamovie.js",
-      "enabled": false,
+      "enabled": true,
       "contentLanguage": ["es"]
     },
     {
@@ -21,14 +21,14 @@
       "author": "KennethJYS",
       "supportedTypes": ["movie"],
       "filename": "providers/cinecalidad.js",
-      "enabled": false,
+      "enabled": true,
       "contentLanguage": ["es"]
     },
     {
       "id": "embed69",
       "name": "Embed69",
       "description": "Streams en Latino/Español/Subtitulado desde Embed69. StreamWish, VOE y Filemoon.",
-      "version": "1.0.1",
+      "version": "1.0.0",
       "author": "KennethJYS",
       "supportedTypes": ["movie", "tv"],
       "filename": "providers/embed69.js",
@@ -43,7 +43,7 @@
       "author": "KennethJYS",
       "supportedTypes": ["movie"],
       "filename": "providers/zoowomaniacos.js",
-      "enabled": false,
+      "enabled": true,
       "contentLanguage": ["es"]
     },
     {
@@ -54,7 +54,7 @@
       "author": "KennethJYS",
       "supportedTypes": ["movie", "tv"],
       "filename": "providers/xupalace.js",
-      "enabled": false,
+      "enabled": true,
       "contentLanguage": ["es"]
     },
     {
@@ -65,7 +65,7 @@
       "author": "KennethJYS",
       "supportedTypes": ["movie", "tv"],
       "filename": "providers/seriesmetro.js",
-      "enabled": false,
+      "enabled": true,
       "contentLanguage": ["es"]
     }
   ]

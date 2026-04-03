@@ -1,4 +1,5 @@
 // resolvers/hlswish.js
+import axios from 'axios';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
@@ -65,20 +66,19 @@ export async function resolve(embedUrl) {
     console.log(`[HLSWish] Resolviendo: ${embedUrl}`);
     if (fetchUrl !== embedUrl) console.log(`[HLSWish] → Mapped to: ${fetchUrl}`);
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
-    const resp = await fetch(fetchUrl, {
-        headers: {
-            'User-Agent': UA,
-            'Referer': 'https://embed69.org/',
-            'Origin': 'https://embed69.org',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'es-MX,es;q=0.9',
-        },
-        signal: controller.signal,
+    const resp = await axios.get(fetchUrl, {
+      headers: {
+        'User-Agent': UA,
+        'Referer': 'https://embed69.org/',
+        'Origin': 'https://embed69.org',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'es-MX,es;q=0.9',
+      },
+      timeout: 15000,
+      maxRedirects: 5
     });
-    clearTimeout(timer);
-    const data = await resp.text();
+    const data = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
+
     // Método 1: file: "..." directo
     const fileMatch = data.match(/file\s*:\s*["']([^"']+)["']/i);
     if (fileMatch) {
@@ -89,10 +89,17 @@ export async function resolve(embedUrl) {
       if (url.includes('vibuxer.com/stream/')) {
         console.log(`[HLSWish] Siguiendo redirect: ${url.substring(0, 80)}...`);
         try {
-          const r2 = await fetch(url, {
+          const redirectResp = await axios.get(url, {
             headers: { 'User-Agent': UA, 'Referer': embedHost + '/' },
-        });
-        if (r2.url && r2.url.includes('.m3u8')) url = r2.url;
+            timeout: 8000,
+            maxRedirects: 5,
+            validateStatus: s => s < 400,
+          });
+          // El redirect puede devolver la URL final en Location o en el body
+          const finalUrl = redirectResp.request?.res?.responseUrl || redirectResp.config?.url;
+          if (finalUrl && finalUrl.includes('.m3u8')) {
+            url = finalUrl;
+          }
         } catch {
           // Si falla el redirect, usar la URL original igual
         }
