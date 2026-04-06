@@ -1,9 +1,7 @@
-var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getOwnPropSymbols = Object.getOwnPropertySymbols;
-var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __propIsEnum = Object.prototype.propertyIsEnumerable;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
@@ -30,14 +28,6 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
-  // If the importer is in node compatibility mode or this is not an ESM
-  // file that has been converted to a CommonJS file using a Babel-
-  // compatible transform (i.e. "__esModule" has not been set), then set
-  // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
-  mod
-));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var __async = (__this, __arguments, generator) => {
   return new Promise((resolve2, reject) => {
@@ -64,9 +54,6 @@ __export(lamovie_exports, {
   getStreams: () => getStreams
 });
 module.exports = __toCommonJS(lamovie_exports);
-var import_axios3 = __toESM(require("axios"));
-var import_axios2 = __toESM(require("axios"));
-var import_axios = __toESM(require("axios"));
 var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
 function normalizeResolution(width, height) {
   if (width >= 3840 || height >= 2160)
@@ -82,10 +69,11 @@ function normalizeResolution(width, height) {
 function detectQuality(_0) {
   return __async(this, arguments, function* (m3u8Url, headers = {}) {
     try {
-      const { data } = yield import_axios.default.get(m3u8Url, {
+      const res = yield fetch(m3u8Url, {
         headers: __spreadValues({ "User-Agent": UA }, headers),
-        responseType: "text"
+        redirect: "follow"
       });
+      const data = yield res.text();
       if (!data.includes("#EXT-X-STREAM-INF")) {
         const match = m3u8Url.match(/[_-](\d{3,4})p/);
         return match ? `${match[1]}p` : "1080p";
@@ -115,15 +103,17 @@ function resolve(embedUrl) {
   return __async(this, null, function* () {
     try {
       console.log(`[Vimeos] Resolviendo: ${embedUrl}`);
-      const resp = yield import_axios2.default.get(embedUrl, {
+      const resp = yield fetch(embedUrl, {
         headers: {
           "User-Agent": UA2,
           "Referer": "https://vimeos.net/",
           "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
         },
-        maxRedirects: 5
+        redirect: "follow"
       });
-      const data = resp.data;
+      if (!resp.ok)
+        throw new Error(`HTTP ${resp.status}`);
+      const data = yield resp.text();
       const packMatch = data.match(
         /eval\(function\(p,a,c,k,e,[dr]\)\{[\s\S]+?\}\('([\s\S]+?)',(\d+),(\d+),'([\s\S]+?)'\.split\('\|'\)/
       );
@@ -134,8 +124,9 @@ function resolve(embedUrl) {
         const chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
         const unbase = (str) => {
           let result = 0;
-          for (let i = 0; i < str.length; i++)
+          for (let i = 0; i < str.length; i++) {
             result = result * radix + chars.indexOf(str[i]);
+          }
           return result;
         };
         const unpacked = payload.replace(/\b(\w+)\b/g, (match) => {
@@ -177,6 +168,18 @@ var RESOLVERS = {
   "vimeos.net": resolve
 };
 var IGNORED_HOSTS = [];
+function httpGet(_0) {
+  return __async(this, arguments, function* (url, options = {}) {
+    const res = yield fetch(url, {
+      headers: __spreadValues({ "User-Agent": UA3 }, options.headers),
+      redirect: "follow"
+    });
+    if (!res.ok)
+      throw new Error(`HTTP ${res.status}`);
+    const contentType = res.headers.get("content-type") || "";
+    return contentType.includes("json") ? res.json() : res.text();
+  });
+}
 var normalizeQuality = (quality) => {
   const str = quality.toString().toLowerCase();
   const match = str.match(/(\d+)/);
@@ -240,7 +243,7 @@ function getTmdbData(tmdbId, mediaType) {
     for (const { lang, name } of attempts) {
       try {
         const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=${lang}`;
-        const { data } = yield import_axios3.default.get(url, { headers: HEADERS });
+        const data = yield httpGet(url, { headers: HEADERS });
         const title = mediaType === "movie" ? data.title : data.name;
         const originalTitle = mediaType === "movie" ? data.original_title : data.original_name;
         if (lang === "es-MX" && /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(title))
@@ -275,7 +278,7 @@ function getIdBySlug(category, slug) {
   return __async(this, null, function* () {
     const url = `${BASE_URL}/${category}/${slug}/`;
     try {
-      const { data: html } = yield import_axios3.default.get(url, {
+      const html = yield httpGet(url, {
         headers: HTML_HEADERS,
         validateStatus: (s) => s === 200
       });
@@ -321,7 +324,7 @@ function getEpisodeId(seriesId, seasonNum, episodeNum) {
     var _a;
     const url = `${BASE_URL}/wp-api/v1/single/episodes/list?_id=${seriesId}&season=${seasonNum}&page=1&postsPerPage=50`;
     try {
-      const { data } = yield import_axios3.default.get(url, { headers: HEADERS });
+      const data = yield httpGet(url, { headers: HEADERS });
       if (!((_a = data == null ? void 0 : data.data) == null ? void 0 : _a.posts))
         return null;
       const ep = data.data.posts.find((e) => e.season_number == seasonNum && e.episode_number == episodeNum);
@@ -383,7 +386,7 @@ function getStreams(tmdbId, mediaType, season, episode) {
         }
         targetId = epId;
       }
-      const { data } = yield import_axios3.default.get(
+      const data = yield httpGet(
         `${BASE_URL}/wp-api/v1/player?postId=${targetId}&demo=0`,
         { headers: HEADERS }
       );
@@ -419,6 +422,3 @@ function getStreams(tmdbId, mediaType, season, episode) {
     } catch (e) {
       console.log(`[LaMovie] Error: ${e.message}`);
       return [];
-    }
-  });
-}
