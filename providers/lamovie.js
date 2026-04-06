@@ -101,18 +101,13 @@ function resolveVimeos(embedUrl) {
   });
 }
 
-// ==================== TU LÓGICA ORIGINAL (plana) ====================
+// ==================== httpGet SIMPLIFICADO (único cambio) ====================
 function httpGet(url, options) {
   options = options || {};
-  var controller = new AbortController();
-  var timer = setTimeout(function() { controller.abort(); }, options.timeout || 8000);
-
   return fetch(url, {
     headers: Object.assign({ "User-Agent": UA }, options.headers || {}),
-    signal: controller.signal,
     redirect: "follow"
   }).then(function(res) {
-    clearTimeout(timer);
     if (!res.ok) throw new Error("HTTP " + res.status);
     var ct = res.headers.get("content-type") || "";
     return ct.includes("json") ? res.json() : res.text();
