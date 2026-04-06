@@ -422,3 +422,6 @@ function getStreams(tmdbId, mediaType, season, episode) {
     } catch (e) {
       console.log(`[LaMovie] Error: ${e.message}`);
       return [];
+    }
+  });
+}
