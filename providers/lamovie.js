@@ -40,7 +40,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var __async = (__this, __arguments, generator) => {
-  return new Promise((resolve3, reject) => {
+  return new Promise((resolve2, reject) => {
     var fulfilled = (value) => {
       try {
         step(generator.next(value));
@@ -55,7 +55,7 @@ var __async = (__this, __arguments, generator) => {
         reject(e);
       }
     };
-    var step = (x) => x.done ? resolve3(x.value) : Promise.resolve(x.value).then(fulfilled, rejected);
+    var step = (x) => x.done ? resolve2(x.value) : Promise.resolve(x.value).then(fulfilled, rejected);
     step((generator = generator.apply(__this, __arguments)).next());
   });
 };
@@ -64,7 +64,7 @@ __export(lamovie_exports, {
   getStreams: () => getStreams
 });
 module.exports = __toCommonJS(lamovie_exports);
-var import_axios4 = __toESM(require("axios"));
+var import_axios3 = __toESM(require("axios"));
 var import_axios2 = __toESM(require("axios"));
 var import_axios = __toESM(require("axios"));
 var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
@@ -114,40 +114,10 @@ var UA2 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
 function resolve(embedUrl) {
   return __async(this, null, function* () {
     try {
-      console.log(`[GoodStream] Resolviendo: ${embedUrl}`);
-      const response = yield import_axios2.default.get(embedUrl, {
+      console.log(`[Vimeos] Resolviendo: ${embedUrl}`);
+      const resp = yield import_axios2.default.get(embedUrl, {
         headers: {
           "User-Agent": UA2,
-          "Referer": "https://goodstream.one",
-          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-        },
-        maxRedirects: 5
-      });
-      const match = response.data.match(/file:\s*"([^"]+)"/);
-      if (!match) {
-        console.log('[GoodStream] No se encontr\xF3 patr\xF3n file:"..."');
-        return null;
-      }
-      const videoUrl = match[1];
-      const refererHeaders = { "Referer": embedUrl, "Origin": "https://goodstream.one", "User-Agent": UA2 };
-      const quality = yield detectQuality(videoUrl, refererHeaders);
-      console.log(`[GoodStream] URL encontrada (${quality}): ${videoUrl.substring(0, 80)}...`);
-      return { url: videoUrl, quality, headers: refererHeaders };
-    } catch (err) {
-      console.log(`[GoodStream] Error: ${err.message}`);
-      return null;
-    }
-  });
-}
-var import_axios3 = __toESM(require("axios"));
-var UA3 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
-function resolve2(embedUrl) {
-  return __async(this, null, function* () {
-    try {
-      console.log(`[Vimeos] Resolviendo: ${embedUrl}`);
-      const resp = yield import_axios3.default.get(embedUrl, {
-        headers: {
-          "User-Agent": UA3,
           "Referer": "https://vimeos.net/",
           "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
         },
@@ -175,7 +145,7 @@ function resolve2(embedUrl) {
         const m3u8Match = unpacked.match(/["']([^"']+\.m3u8[^"']*)['"]/i);
         if (m3u8Match) {
           const url = m3u8Match[1];
-          const refererHeaders = { "User-Agent": UA3, "Referer": "https://vimeos.net/" };
+          const refererHeaders = { "User-Agent": UA2, "Referer": "https://vimeos.net/" };
           const quality = yield detectQuality(url, refererHeaders);
           console.log(`[Vimeos] URL encontrada: ${url.substring(0, 80)}...`);
           return { url, quality, headers: refererHeaders };
@@ -190,13 +160,13 @@ function resolve2(embedUrl) {
   });
 }
 var TMDB_API_KEY = "439c478a771f35c05022f9feabcca01c";
-var UA4 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
-var HEADERS = { "User-Agent": UA4, "Accept": "application/json" };
+var UA3 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
+var HEADERS = { "User-Agent": UA3, "Accept": "application/json" };
 var BASE_URL = "https://la.movie";
 var ANIME_COUNTRIES = ["JP", "CN", "KR"];
 var GENRE_ANIMATION = 16;
 var RESOLVERS = {
-  "goodstream.one": resolve,
+  //'goodstream.one': resolveGoodStream,
   //'hlswish.com': resolveHlswish,
   //'streamwish.com': resolveHlswish,
   //'streamwish.to': resolveHlswish,
@@ -204,7 +174,7 @@ var RESOLVERS = {
   //'voe.sx': resolveVoe,
   //'filemoon.sx': resolveFilemoon,
   //'filemoon.to': resolveFilemoon,
-  "vimeos.net": resolve2
+  "vimeos.net": resolve
 };
 var IGNORED_HOSTS = [];
 var normalizeQuality = (quality) => {
@@ -270,7 +240,7 @@ function getTmdbData(tmdbId, mediaType) {
     for (const { lang, name } of attempts) {
       try {
         const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=${lang}`;
-        const { data } = yield import_axios4.default.get(url, { headers: HEADERS });
+        const { data } = yield import_axios3.default.get(url, { headers: HEADERS });
         const title = mediaType === "movie" ? data.title : data.name;
         const originalTitle = mediaType === "movie" ? data.original_title : data.original_name;
         if (lang === "es-MX" && /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(title))
@@ -291,7 +261,7 @@ function getTmdbData(tmdbId, mediaType) {
   });
 }
 var HTML_HEADERS = {
-  "User-Agent": UA4,
+  "User-Agent": UA3,
   "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
   "Accept-Language": "es-MX,es;q=0.9",
   "Connection": "keep-alive",
@@ -305,7 +275,7 @@ function getIdBySlug(category, slug) {
   return __async(this, null, function* () {
     const url = `${BASE_URL}/${category}/${slug}/`;
     try {
-      const { data: html } = yield import_axios4.default.get(url, {
+      const { data: html } = yield import_axios3.default.get(url, {
         headers: HTML_HEADERS,
         validateStatus: (s) => s === 200
       });
@@ -351,7 +321,7 @@ function getEpisodeId(seriesId, seasonNum, episodeNum) {
     var _a;
     const url = `${BASE_URL}/wp-api/v1/single/episodes/list?_id=${seriesId}&season=${seasonNum}&page=1&postsPerPage=50`;
     try {
-      const { data } = yield import_axios4.default.get(url, { headers: HEADERS });
+      const { data } = yield import_axios3.default.get(url, { headers: HEADERS });
       if (!((_a = data == null ? void 0 : data.data) == null ? void 0 : _a.posts))
         return null;
       const ep = data.data.posts.find((e) => e.season_number == seasonNum && e.episode_number == episodeNum);
@@ -413,7 +383,7 @@ function getStreams(tmdbId, mediaType, season, episode) {
         }
         targetId = epId;
       }
-      const { data } = yield import_axios4.default.get(
+      const { data } = yield import_axios3.default.get(
         `${BASE_URL}/wp-api/v1/player?postId=${targetId}&demo=0`,
         { headers: HEADERS }
       );
@@ -422,11 +392,11 @@ function getStreams(tmdbId, mediaType, season, episode) {
         return [];
       }
       const embedPromises = data.data.embeds.map((embed) => processEmbed(embed));
-      const streams = yield new Promise((resolve3) => {
+      const streams = yield new Promise((resolve2) => {
         const results = [];
         let completed = 0;
         const total = embedPromises.length;
-        const finish = () => resolve3(results.filter(Boolean));
+        const finish = () => resolve2(results.filter(Boolean));
         embedPromises.forEach((p) => {
           p.then((result) => {
             if (result)
