@@ -14,7 +14,7 @@ var RESOLVERS = {
 
 var IGNORED_HOSTS = [];
 
-// ==================== VIMEOS RESOLVER ====================
+// ==================== VIMEOS RESOLVER (cambio #1) ====================
 function resolveVimeos(embedUrl) {
   return new Promise(function(resolve) {
     var attempt = 1;
@@ -28,20 +28,15 @@ function resolveVimeos(embedUrl) {
 
       console.log(`[Vimeos] Intento ${attempt}: ${embedUrl}`);
 
-      var controller = new AbortController();
-      var timer = setTimeout(function() { controller.abort(); }, 12000);
-
       fetch(embedUrl, {
         headers: {
           "User-Agent": UA,
           "Referer": "https://vimeos.net/",
           "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
         },
-        signal: controller.signal,
         redirect: "follow"
       })
       .then(function(resp) {
-        clearTimeout(timer);
         if (!resp.ok) throw new Error("HTTP " + resp.status);
         return resp.text();
       })
