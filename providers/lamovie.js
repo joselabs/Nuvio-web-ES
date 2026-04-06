@@ -30,7 +30,7 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var __async = (__this, __arguments, generator) => {
-  return new Promise((resolve2, reject) => {
+  return new Promise((resolve3, reject) => {
     var fulfilled = (value) => {
       try {
         step(generator.next(value));
@@ -45,7 +45,7 @@ var __async = (__this, __arguments, generator) => {
         reject(e);
       }
     };
-    var step = (x) => x.done ? resolve2(x.value) : Promise.resolve(x.value).then(fulfilled, rejected);
+    var step = (x) => x.done ? resolve3(x.value) : Promise.resolve(x.value).then(fulfilled, rejected);
     step((generator = generator.apply(__this, __arguments)).next());
   });
 };
@@ -102,10 +102,42 @@ var UA2 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
 function resolve(embedUrl) {
   return __async(this, null, function* () {
     try {
+      console.log(`[GoodStream] Resolviendo: ${embedUrl}`);
+      const response = yield fetch(embedUrl, {
+        headers: {
+          "User-Agent": UA2,
+          "Referer": "https://goodstream.one",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        },
+        redirect: "follow"
+      });
+      if (!response.ok)
+        throw new Error(`HTTP ${response.status}`);
+      const html = yield response.text();
+      const match = html.match(/file:\s*"([^"]+)"/);
+      if (!match) {
+        console.log('[GoodStream] No se encontr\xF3 patr\xF3n file:"..."');
+        return null;
+      }
+      const videoUrl = match[1];
+      const refererHeaders = { "Referer": embedUrl, "Origin": "https://goodstream.one", "User-Agent": UA2 };
+      const quality = yield detectQuality(videoUrl, refererHeaders);
+      console.log(`[GoodStream] URL encontrada (${quality}): ${videoUrl.substring(0, 80)}...`);
+      return { url: videoUrl, quality, headers: refererHeaders };
+    } catch (err) {
+      console.log(`[GoodStream] Error: ${err.message}`);
+      return null;
+    }
+  });
+}
+var UA3 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
+function resolve2(embedUrl) {
+  return __async(this, null, function* () {
+    try {
       console.log(`[Vimeos] Resolviendo: ${embedUrl}`);
       const resp = yield fetch(embedUrl, {
         headers: {
-          "User-Agent": UA2,
+          "User-Agent": UA3,
           "Referer": "https://vimeos.net/",
           "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
         },
@@ -136,7 +168,7 @@ function resolve(embedUrl) {
         const m3u8Match = unpacked.match(/["']([^"']+\.m3u8[^"']*)['"]/i);
         if (m3u8Match) {
           const url = m3u8Match[1];
-          const refererHeaders = { "User-Agent": UA2, "Referer": "https://vimeos.net/" };
+          const refererHeaders = { "User-Agent": UA3, "Referer": "https://vimeos.net/" };
           const quality = yield detectQuality(url, refererHeaders);
           console.log(`[Vimeos] URL encontrada: ${url.substring(0, 80)}...`);
           return { url, quality, headers: refererHeaders };
@@ -151,13 +183,13 @@ function resolve(embedUrl) {
   });
 }
 var TMDB_API_KEY = "439c478a771f35c05022f9feabcca01c";
-var UA3 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
-var HEADERS = { "User-Agent": UA3, "Accept": "application/json" };
+var UA4 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
+var HEADERS = { "User-Agent": UA4, "Accept": "application/json" };
 var BASE_URL = "https://la.movie";
 var ANIME_COUNTRIES = ["JP", "CN", "KR"];
 var GENRE_ANIMATION = 16;
 var RESOLVERS = {
-  //'goodstream.one': resolveGoodStream,
+  "goodstream.one": resolve,
   //'hlswish.com': resolveHlswish,
   //'streamwish.com': resolveHlswish,
   //'streamwish.to': resolveHlswish,
@@ -165,13 +197,13 @@ var RESOLVERS = {
   //'voe.sx': resolveVoe,
   //'filemoon.sx': resolveFilemoon,
   //'filemoon.to': resolveFilemoon,
-  "vimeos.net": resolve
+  "vimeos.net": resolve2
 };
 var IGNORED_HOSTS = [];
 function httpGet(_0) {
   return __async(this, arguments, function* (url, options = {}) {
     const res = yield fetch(url, {
-      headers: __spreadValues({ "User-Agent": UA3 }, options.headers),
+      headers: __spreadValues({ "User-Agent": UA4 }, options.headers),
       redirect: "follow"
     });
     if (!res.ok)
@@ -264,7 +296,7 @@ function getTmdbData(tmdbId, mediaType) {
   });
 }
 var HTML_HEADERS = {
-  "User-Agent": UA3,
+  "User-Agent": UA4,
   "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
   "Accept-Language": "es-MX,es;q=0.9",
   "Connection": "keep-alive",
@@ -395,11 +427,11 @@ function getStreams(tmdbId, mediaType, season, episode) {
         return [];
       }
       const embedPromises = data.data.embeds.map((embed) => processEmbed(embed));
-      const streams = yield new Promise((resolve2) => {
+      const streams = yield new Promise((resolve3) => {
         const results = [];
         let completed = 0;
         const total = embedPromises.length;
-        const finish = () => resolve2(results.filter(Boolean));
+        const finish = () => resolve3(results.filter(Boolean));
         embedPromises.forEach((p) => {
           p.then((result) => {
             if (result)
@@ -425,3 +457,4 @@ function getStreams(tmdbId, mediaType, season, episode) {
     }
   });
 }
+
