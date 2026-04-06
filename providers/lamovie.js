@@ -1,4 +1,6 @@
 // providers/lamovie.js
+// Versión manual plana - Tu lógica 100% intacta
+
 var TMDB_API_KEY = "439c478a771f35c05022f9feabcca01c";
 var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
 var HEADERS = { "User-Agent": UA, "Accept": "application/json" };
@@ -13,7 +15,72 @@ var RESOLVERS = {
 
 var IGNORED_HOSTS = [];
 
-// Helper httpGet (ya lo tenías)
+// ==================== VIMEOS RESOLVER (tu versión) ====================
+function resolveVimeos(embedUrl) {
+  return new Promise(function(resolve) {
+    console.log("[Vimeos] Resolviendo: " + embedUrl);
+
+    var controller = new AbortController();
+    var timer = setTimeout(function() { controller.abort(); }, 15000);
+
+    fetch(embedUrl, {
+      headers: {
+        "User-Agent": UA,
+        "Referer": "https://vimeos.net/",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      },
+      signal: controller.signal,
+      redirect: "follow"
+    })
+    .then(function(resp) {
+      clearTimeout(timer);
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      return resp.text();
+    })
+    .then(function(data) {
+      var packMatch = data.match(/eval\(function\(p,a,c,k,e,[dr]\)\{[\s\S]+?\}\('([\s\S]+?)',(\d+),(\d+),'([\s\S]+?)'\.split\('\|'\)/);
+      if (!packMatch) {
+        console.log("[Vimeos] No se encontró pack");
+        return resolve(null);
+      }
+
+      var payload = packMatch[1];
+      var radix = parseInt(packMatch[2]);
+      var symtab = packMatch[4].split("|");
+      var chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+      var unbase = function(str) {
+        var result = 0;
+        for (var i = 0; i < str.length; i++) {
+          result = result * radix + chars.indexOf(str[i]);
+        }
+        return result;
+      };
+
+      var unpacked = payload.replace(/\b(\w+)\b/g, function(match) {
+        var idx = unbase(match);
+        return symtab[idx] && symtab[idx] !== "" ? symtab[idx] : match;
+      });
+
+      var m3u8Match = unpacked.match(/["']([^"']+\.m3u8[^"']*)['"]/i);
+      if (m3u8Match) {
+        var url = m3u8Match[1];
+        var refererHeaders = { "User-Agent": UA, "Referer": "https://vimeos.net/" };
+        console.log("[Vimeos] URL encontrada: " + url.substring(0, 80) + "...");
+        return resolve({ url: url, quality: "1080p", headers: refererHeaders });
+      }
+
+      console.log("[Vimeos] No se encontró URL");
+      resolve(null);
+    })
+    .catch(function(err) {
+      console.log("[Vimeos] Error: " + err.message);
+      resolve(null);
+    });
+  });
+}
+
+// ==================== TU LÓGICA ORIGINAL (plana) ====================
 function httpGet(url, options) {
   options = options || {};
   var controller = new AbortController();
@@ -31,22 +98,9 @@ function httpGet(url, options) {
   });
 }
 
-// ============================================================================
-// UTILIDADES (las tuyas intactas)
-// ============================================================================
-function normalizeText(text) {
-  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-}
-
 function buildSlug(title, year) {
-  var slug = title
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, " ")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+  var slug = title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ").replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
   return year ? slug + "-" + year : slug;
 }
 
@@ -75,15 +129,17 @@ function getServerName(url) {
 }
 
 function getResolver(url) {
-  for (var pattern in RESOLVERS) {
-    if (url.includes(pattern)) return RESOLVERS[pattern];
+  for (var key in RESOLVERS) {
+    if (url.includes(key)) return RESOLVERS[key];
   }
   return null;
 }
 
-// ============================================================================
-// TMDB (tu lógica intacta, solo en .then)
-// ============================================================================
+function extractIdFromHtml(html) {
+  var match = html.match(/rel=['"]shortlink['"]\s+href=['"][^'"]*\?p=(\d+)['"]/);
+  return match ? match[1] : null;
+}
+
 function getTmdbData(tmdbId, mediaType) {
   var attempts = [
     { lang: "es-MX", name: "Latino" },
@@ -121,23 +177,17 @@ function getTmdbData(tmdbId, mediaType) {
   return tryNext(0);
 }
 
-// ============================================================================
-// SLUG → ID (tu lógica intacta)
-// ============================================================================
-function extractIdFromHtml(html) {
-  var match = html.match(/rel=['"]shortlink['"]\s+href=['"][^'"]*\?p=(\d+)['"]/);
-  return match ? match[1] : null;
-}
+var HTML_HEADERS = {
+  "User-Agent": UA,
+  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "Accept-Language": "es-MX,es;q=0.9",
+  "Connection": "keep-alive",
+  "Upgrade-Insecure-Requests": "1"
+};
 
 function getIdBySlug(category, slug) {
   var url = BASE_URL + "/" + category + "/" + slug + "/";
-  return httpGet(url, { timeout: 8000, headers: {
-    "User-Agent": UA,
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "es-MX,es;q=0.9",
-    "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1"
-  }})
+  return httpGet(url, { timeout: 8000, headers: HTML_HEADERS })
     .then(function(html) {
       var id = extractIdFromHtml(html);
       if (id) {
@@ -146,9 +196,7 @@ function getIdBySlug(category, slug) {
       }
       return null;
     })
-    .catch(function() {
-      return null;
-    });
+    .catch(function() { return null; });
 }
 
 function findBySlug(tmdbInfo, mediaType) {
@@ -170,9 +218,7 @@ function findBySlug(tmdbInfo, mediaType) {
         return result || tryNextSlug(i + 1);
       });
     } else {
-      var promises = categories.map(function(cat) {
-        return getIdBySlug(cat, slug);
-      });
+      var promises = categories.map(function(cat) { return getIdBySlug(cat, slug); });
       return Promise.all(promises).then(function(results) {
         for (var j = 0; j < results.length; j++) {
           if (results[j]) return results[j];
@@ -185,9 +231,6 @@ function findBySlug(tmdbInfo, mediaType) {
   return tryNextSlug(0);
 }
 
-// ============================================================================
-// EPISODIOS
-// ============================================================================
 function getEpisodeId(seriesId, seasonNum, episodeNum) {
   var url = BASE_URL + "/wp-api/v1/single/episodes/list?_id=" + seriesId + "&season=" + seasonNum + "&page=1&postsPerPage=50";
   return httpGet(url, { timeout: 12000, headers: HEADERS })
@@ -204,9 +247,6 @@ function getEpisodeId(seriesId, seasonNum, episodeNum) {
     });
 }
 
-// ============================================================================
-// RESOLUCIÓN DE EMBEDS
-// ============================================================================
 function processEmbed(embed) {
   return new Promise(function(resolve) {
     var resolver = getResolver(embed.url);
@@ -235,9 +275,6 @@ function processEmbed(embed) {
   });
 }
 
-// ============================================================================
-// FUNCIÓN PRINCIPAL
-// ============================================================================
 function getStreams(tmdbId, mediaType, season, episode) {
   return new Promise(function(resolve) {
     if (!tmdbId || !mediaType) return resolve([]);
@@ -279,9 +316,9 @@ function getStreams(tmdbId, mediaType, season, episode) {
 
               var embeds = data.data.embeds;
               var results = [];
-              var completed = 0;
+              var i = 0;
 
-              function next(i) {
+              function next() {
                 if (i >= embeds.length) {
                   var elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
                   console.log("[LaMovie] ✓ " + results.length + " streams en " + elapsed + "s");
@@ -290,15 +327,15 @@ function getStreams(tmdbId, mediaType, season, episode) {
 
                 processEmbed(embeds[i]).then(function(result) {
                   if (result) results.push(result);
-                  completed++;
-                  next(i + 1);
+                  i++;
+                  next();
                 }).catch(function() {
-                  completed++;
-                  next(i + 1);
+                  i++;
+                  next();
                 });
               }
 
-              next(0);
+              next();
             })
             .catch(function(e) {
               console.log("[LaMovie] Error: " + e.message);
