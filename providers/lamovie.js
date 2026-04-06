@@ -1,6 +1,320 @@
-/**
- * lamovie - Built from src/lamovie/
- * Generated: 2026-04-03T22:20:28.799Z
- */
-var w=Object.defineProperty;var F=Object.getOwnPropertyDescriptor;var z=Object.getOwnPropertyNames,L=Object.getOwnPropertySymbols;var _=Object.prototype.hasOwnProperty,W=Object.prototype.propertyIsEnumerable;var R=(t,e,n)=>e in t?w(t,e,{enumerable:!0,configurable:!0,writable:!0,value:n}):t[e]=n,v=(t,e)=>{for(var n in e||(e={}))_.call(e,n)&&R(t,n,e[n]);if(L)for(var n of L(e))W.call(e,n)&&R(t,n,e[n]);return t};var k=(t,e)=>{for(var n in e)w(t,n,{get:e[n],enumerable:!0})},q=(t,e,n,o)=>{if(e&&typeof e=="object"||typeof e=="function")for(let r of z(e))!_.call(t,r)&&r!==n&&w(t,r,{get:()=>e[r],enumerable:!(o=F(e,r))||o.enumerable});return t};var B=t=>q(w({},"__esModule",{value:!0}),t);var p=(t,e,n)=>new Promise((o,r)=>{var s=i=>{try{a(n.next(i))}catch(c){r(c)}},l=i=>{try{a(n.throw(i))}catch(c){r(c)}},a=i=>i.done?o(i.value):Promise.resolve(i.value).then(s,l);a((n=n.apply(t,e)).next())});var ae={};k(ae,{getStreams:()=>ie});module.exports=B(ae);var H="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";function P(t,e){return t>=3840||e>=2160?"4K":t>=1920||e>=1080?"1080p":t>=1280||e>=720?"720p":t>=854||e>=480?"480p":"360p"}function I(n){return p(this,arguments,function*(t,e={}){try{let o=new AbortController,r=setTimeout(()=>o.abort(),3e3),s=yield fetch(t,{headers:v({"User-Agent":H},e),signal:o.signal,redirect:"follow"});clearTimeout(r);let l=yield s.text();if(!l.includes("#EXT-X-STREAM-INF")){let m=t.match(/[_-](\d{3,4})p/);return m?`${m[1]}p`:"1080p"}let a=0,i=0,c=l.split(`
-`);for(let m of c){let g=m.match(/RESOLUTION=(\d+)x(\d+)/);if(g){let d=parseInt(g[1]),f=parseInt(g[2]);f>i&&(i=f,a=d)}}return i>0?P(a,i):"1080p"}catch(o){return"1080p"}})}var N="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";function U(t){return p(this,null,function*(){try{console.log(`[Vimeos] Resolviendo: ${t}`);let e=new AbortController,n=setTimeout(()=>e.abort(),15e3),o=yield fetch(t,{headers:{"User-Agent":N,Referer:"https://vimeos.net/",Accept:"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"},signal:e.signal,redirect:"follow"});if(clearTimeout(n),!o.ok)throw new Error(`HTTP ${o.status}`);let s=(yield o.text()).match(/eval\(function\(p,a,c,k,e,[dr]\)\{[\s\S]+?\}\('([\s\S]+?)',(\d+),(\d+),'([\s\S]+?)'\.split\('\|'\)/);if(s){let l=s[1],a=parseInt(s[2]),i=s[4].split("|"),c="0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",m=f=>{let u=0;for(let h=0;h<f.length;h++)u=u*a+c.indexOf(f[h]);return u},d=l.replace(/\b(\w+)\b/g,f=>{let u=m(f);return i[u]&&i[u]!==""?i[u]:f}).match(/["']([^"']+\.m3u8[^"']*)['"]/i);if(d){let f=d[1],u={"User-Agent":N,Referer:"https://vimeos.net/"},h=yield I(f,u);return console.log(`[Vimeos] URL encontrada: ${f.substring(0,80)}...`),{url:f,quality:h,headers:u}}}return console.log("[Vimeos] No se encontr\xF3 URL"),null}catch(e){return console.log(`[Vimeos] Error: ${e.message}`),null}})}var V="439c478a771f35c05022f9feabcca01c",S="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",A={"User-Agent":S,Accept:"application/json"},y="https://la.movie",K=["JP","CN","KR"],X=16,j={"vimeos.net":U},G=[];function E(n){return p(this,arguments,function*(t,e={}){let o=new AbortController,r=setTimeout(()=>o.abort(),e.timeout||8e3),s=yield fetch(t,{headers:v({"User-Agent":S},e.headers),signal:o.signal,redirect:"follow"});if(clearTimeout(r),!s.ok)throw new Error(`HTTP ${s.status}`);return(s.headers.get("content-type")||"").includes("json")?s.json():s.text()})}var Q=t=>{let e=t.toString().toLowerCase(),n=e.match(/(\d+)/);return n?`${n[1]}p`:e.includes("4k")||e.includes("uhd")?"2160p":e.includes("full")||e.includes("fhd")?"1080p":e.includes("hd")?"720p":"SD"},J=t=>t.includes("goodstream")?"GoodStream":t.includes("hlswish")||t.includes("streamwish")?"StreamWish":t.includes("voe.sx")?"VOE":t.includes("filemoon")?"Filemoon":t.includes("vimeos.net")?"Vimeos":"Online",Y=t=>{try{if(G.some(e=>t.includes(e)))return null;for(let[e,n]of Object.entries(j))if(t.includes(e))return n}catch(e){}return null};function C(t,e){let n=t.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9\s-]/g," ").replace(/\s+/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"");return e?`${n}-${e}`:n}function Z(t,e,n){return t==="movie"?["peliculas"]:(e||[]).includes(X)?(n||[]).some(s=>K.includes(s))?["animes"]:["animes","series"]:["series"]}function ee(t,e){return p(this,null,function*(){var o;let n=[{lang:"es-MX",name:"Latino"},{lang:"en-US",name:"Ingl\xE9s"}];for(let{lang:r,name:s}of n)try{let l=`https://api.themoviedb.org/3/${e}/${t}?api_key=${V}&language=${r}`,a=yield E(l,{timeout:5e3,headers:A}),i=e==="movie"?a.title:a.name,c=e==="movie"?a.original_title:a.original_name;if(r==="es-MX"&&/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(i))continue;return console.log(`[LaMovie] TMDB (${s}): "${i}"${i!==c?` | Original: "${c}"`:""}`),{title:i,originalTitle:c,year:(a.release_date||a.first_air_date||"").substring(0,4),genres:(a.genres||[]).map(m=>m.id),originCountries:a.origin_country||((o=a.production_countries)==null?void 0:o.map(m=>m.iso_3166_1))||[]}}catch(l){console.log(`[LaMovie] Error TMDB ${s}: ${l.message}`)}return null})}var te={"User-Agent":S,Accept:"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8","Accept-Language":"es-MX,es;q=0.9",Connection:"keep-alive","Upgrade-Insecure-Requests":"1"};function ne(t){let e=t.match(/rel=['"]shortlink['"]\s+href=['"][^'"]*\?p=(\d+)['"]/);return e?e[1]:null}function O(t,e){return p(this,null,function*(){let n=`${y}/${t}/${e}/`;try{let o=yield E(n,{timeout:8e3,headers:te,validateStatus:s=>s===200}),r=ne(o);return r?(console.log(`[LaMovie] \u2713 Slug directo: /${t}/${e} \u2192 id:${r}`),{id:r}):null}catch(o){return null}})}function oe(t,e){return p(this,null,function*(){let{title:n,originalTitle:o,year:r,genres:s,originCountries:l}=t,a=Z(e,s,l),i=[];n&&i.push(C(n,r)),o&&o!==n&&i.push(C(o,r));for(let c of i)if(a.length===1){let m=yield O(a[0],c);if(m)return m}else{let g=(yield Promise.allSettled(a.map(d=>O(d,c)))).find(d=>d.status==="fulfilled"&&d.value);if(g)return g.value}return null})}function se(t,e,n){return p(this,null,function*(){var r;let o=`${y}/wp-api/v1/single/episodes/list?_id=${t}&season=${e}&page=1&postsPerPage=50`;try{let s=yield E(o,{timeout:12e3,headers:A});if(!((r=s==null?void 0:s.data)!=null&&r.posts))return null;let l=s.data.posts.find(a=>a.season_number==e&&a.episode_number==n);return(l==null?void 0:l._id)||null}catch(s){return console.log(`[LaMovie] Error episodios: ${s.message}`),null}})}function re(t){return p(this,null,function*(){try{let e=Y(t.url);if(!e)return console.log(`[LaMovie] Sin resolver para: ${t.url}`),null;let n=yield e(t.url);if(!n||!n.url)return null;let o=Q(t.quality||"1080p"),r=J(t.url);return{name:"LaMovie",title:`${o} \xB7 ${r}`,url:n.url,quality:o,headers:n.headers||{}}}catch(e){return console.log(`[LaMovie] Error procesando embed: ${e.message}`),null}})}function ie(t,e,n,o){return p(this,null,function*(){var s;if(!t||!e)return[];let r=Date.now();console.log(`[LaMovie] Buscando: TMDB ${t} (${e})${n?` S${n}E${o}`:""}`);try{let l=yield ee(t,e);if(!l)return[];let a=yield oe(l,e);if(!a)return console.log("[LaMovie] No encontrado por slug"),[];let i=a.id;if(e==="tv"&&n&&o){let u=yield se(i,n,o);if(!u)return console.log(`[LaMovie] Episodio S${n}E${o} no encontrado`),[];i=u}let c=yield E(`${y}/wp-api/v1/player?postId=${i}&demo=0`,{timeout:6e3,headers:A});if(!((s=c==null?void 0:c.data)!=null&&s.embeds))return console.log("[LaMovie] No hay embeds disponibles"),[];let m=5e3,g=c.data.embeds.map(u=>re(u)),d=yield new Promise(u=>{let h=[],$=0,T=g.length,M=()=>u(h.filter(Boolean)),x=setTimeout(M,m);g.forEach(D=>{D.then(b=>{b&&h.push(b),$++,$===T&&(clearTimeout(x),M())}).catch(()=>{$++,$===T&&(clearTimeout(x),M())})})}),f=((Date.now()-r)/1e3).toFixed(2);return console.log(`[LaMovie] \u2713 ${d.length} streams en ${f}s`),d}catch(l){return console.log(`[LaMovie] Error: ${l.message}`),[]}})}
+// providers/lamovie.js
+var TMDB_API_KEY = "439c478a771f35c05022f9feabcca01c";
+var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
+var HEADERS = { "User-Agent": UA, "Accept": "application/json" };
+var BASE_URL = "https://la.movie";
+
+var ANIME_COUNTRIES = ["JP", "CN", "KR"];
+var GENRE_ANIMATION = 16;
+
+var RESOLVERS = {
+  "vimeos.net": resolveVimeos
+};
+
+var IGNORED_HOSTS = [];
+
+// Helper httpGet (ya lo tenías)
+function httpGet(url, options) {
+  options = options || {};
+  var controller = new AbortController();
+  var timer = setTimeout(function() { controller.abort(); }, options.timeout || 8000);
+
+  return fetch(url, {
+    headers: Object.assign({ "User-Agent": UA }, options.headers || {}),
+    signal: controller.signal,
+    redirect: "follow"
+  }).then(function(res) {
+    clearTimeout(timer);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    var ct = res.headers.get("content-type") || "";
+    return ct.includes("json") ? res.json() : res.text();
+  });
+}
+
+// ============================================================================
+// UTILIDADES (las tuyas intactas)
+// ============================================================================
+function normalizeText(text) {
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+function buildSlug(title, year) {
+  var slug = title
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return year ? slug + "-" + year : slug;
+}
+
+function getCategories(mediaType, genres, originCountries) {
+  if (mediaType === "movie") return ["peliculas"];
+  var isAnimation = (genres || []).indexOf(GENRE_ANIMATION) !== -1;
+  if (!isAnimation) return ["series"];
+  var isAnimeCountry = (originCountries || []).some(function(c) { return ANIME_COUNTRIES.indexOf(c) !== -1; });
+  if (isAnimeCountry) return ["animes"];
+  return ["animes", "series"];
+}
+
+function normalizeQuality(quality) {
+  var str = quality.toString().toLowerCase();
+  var match = str.match(/(\d+)/);
+  if (match) return match[1] + "p";
+  if (str.includes("4k") || str.includes("uhd")) return "2160p";
+  if (str.includes("full") || str.includes("fhd")) return "1080p";
+  if (str.includes("hd")) return "720p";
+  return "SD";
+}
+
+function getServerName(url) {
+  if (url.includes("vimeos.net")) return "Vimeos";
+  return "Online";
+}
+
+function getResolver(url) {
+  for (var pattern in RESOLVERS) {
+    if (url.includes(pattern)) return RESOLVERS[pattern];
+  }
+  return null;
+}
+
+// ============================================================================
+// TMDB (tu lógica intacta, solo en .then)
+// ============================================================================
+function getTmdbData(tmdbId, mediaType) {
+  var attempts = [
+    { lang: "es-MX", name: "Latino" },
+    { lang: "en-US", name: "Inglés" }
+  ];
+
+  function tryNext(i) {
+    if (i >= attempts.length) return Promise.resolve(null);
+    var attempt = attempts[i];
+
+    return httpGet("https://api.themoviedb.org/3/" + mediaType + "/" + tmdbId + "?api_key=" + TMDB_API_KEY + "&language=" + attempt.lang, { timeout: 10000, headers: HEADERS })
+      .then(function(data) {
+        var title = mediaType === "movie" ? data.title : data.name;
+        var originalTitle = mediaType === "movie" ? data.original_title : data.original_name;
+
+        if (attempt.lang === "es-MX" && /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(title)) {
+          return tryNext(i + 1);
+        }
+
+        console.log("[LaMovie] TMDB (" + attempt.name + "): \"" + title + "\"" + (title !== originalTitle ? " | Original: \"" + originalTitle + "\"" : ""));
+        return {
+          title: title,
+          originalTitle: originalTitle,
+          year: (data.release_date || data.first_air_date || "").substring(0, 4),
+          genres: (data.genres || []).map(function(g) { return g.id; }),
+          originCountries: data.origin_country || (data.production_countries || []).map(function(c) { return c.iso_3166_1; }) || []
+        };
+      })
+      .catch(function(e) {
+        console.log("[LaMovie] Error TMDB " + attempt.name + ": " + e.message);
+        return tryNext(i + 1);
+      });
+  }
+
+  return tryNext(0);
+}
+
+// ============================================================================
+// SLUG → ID (tu lógica intacta)
+// ============================================================================
+function extractIdFromHtml(html) {
+  var match = html.match(/rel=['"]shortlink['"]\s+href=['"][^'"]*\?p=(\d+)['"]/);
+  return match ? match[1] : null;
+}
+
+function getIdBySlug(category, slug) {
+  var url = BASE_URL + "/" + category + "/" + slug + "/";
+  return httpGet(url, { timeout: 8000, headers: {
+    "User-Agent": UA,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "es-MX,es;q=0.9",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1"
+  }})
+    .then(function(html) {
+      var id = extractIdFromHtml(html);
+      if (id) {
+        console.log("[LaMovie] ✓ Slug directo: /" + category + "/" + slug + " → id:" + id);
+        return { id: id };
+      }
+      return null;
+    })
+    .catch(function() {
+      return null;
+    });
+}
+
+function findBySlug(tmdbInfo, mediaType) {
+  var title = tmdbInfo.title;
+  var originalTitle = tmdbInfo.originalTitle;
+  var year = tmdbInfo.year;
+  var categories = getCategories(mediaType, tmdbInfo.genres, tmdbInfo.originCountries);
+
+  var slugs = [];
+  if (title) slugs.push(buildSlug(title, year));
+  if (originalTitle && originalTitle !== title) slugs.push(buildSlug(originalTitle, year));
+
+  function tryNextSlug(i) {
+    if (i >= slugs.length) return Promise.resolve(null);
+    var slug = slugs[i];
+
+    if (categories.length === 1) {
+      return getIdBySlug(categories[0], slug).then(function(result) {
+        return result || tryNextSlug(i + 1);
+      });
+    } else {
+      var promises = categories.map(function(cat) {
+        return getIdBySlug(cat, slug);
+      });
+      return Promise.all(promises).then(function(results) {
+        for (var j = 0; j < results.length; j++) {
+          if (results[j]) return results[j];
+        }
+        return tryNextSlug(i + 1);
+      });
+    }
+  }
+
+  return tryNextSlug(0);
+}
+
+// ============================================================================
+// EPISODIOS
+// ============================================================================
+function getEpisodeId(seriesId, seasonNum, episodeNum) {
+  var url = BASE_URL + "/wp-api/v1/single/episodes/list?_id=" + seriesId + "&season=" + seasonNum + "&page=1&postsPerPage=50";
+  return httpGet(url, { timeout: 12000, headers: HEADERS })
+    .then(function(data) {
+      if (!data || !data.data || !data.data.posts) return null;
+      var ep = data.data.posts.find(function(e) {
+        return String(e.season_number) === String(seasonNum) && String(e.episode_number) === String(episodeNum);
+      });
+      return ep ? ep._id : null;
+    })
+    .catch(function(e) {
+      console.log("[LaMovie] Error episodios: " + e.message);
+      return null;
+    });
+}
+
+// ============================================================================
+// RESOLUCIÓN DE EMBEDS
+// ============================================================================
+function processEmbed(embed) {
+  return new Promise(function(resolve) {
+    var resolver = getResolver(embed.url);
+    if (!resolver) {
+      console.log("[LaMovie] Sin resolver para: " + embed.url);
+      return resolve(null);
+    }
+
+    resolver(embed.url).then(function(result) {
+      if (!result || !result.url) return resolve(null);
+
+      var quality = normalizeQuality(embed.quality || "1080p");
+      var serverName = getServerName(embed.url);
+
+      resolve({
+        name: "LaMovie",
+        title: quality + " · " + serverName,
+        url: result.url,
+        quality: quality,
+        headers: result.headers || {}
+      });
+    }).catch(function(e) {
+      console.log("[LaMovie] Error procesando embed: " + e.message);
+      resolve(null);
+    });
+  });
+}
+
+// ============================================================================
+// FUNCIÓN PRINCIPAL
+// ============================================================================
+function getStreams(tmdbId, mediaType, season, episode) {
+  return new Promise(function(resolve) {
+    if (!tmdbId || !mediaType) return resolve([]);
+
+    var startTime = Date.now();
+    console.log("[LaMovie] Buscando: TMDB " + tmdbId + " (" + mediaType + ")" + (season ? " S" + season + "E" + episode : ""));
+
+    getTmdbData(tmdbId, mediaType).then(function(tmdbInfo) {
+      if (!tmdbInfo) return resolve([]);
+
+      findBySlug(tmdbInfo, mediaType).then(function(found) {
+        if (!found) {
+          console.log("[LaMovie] No encontrado por slug");
+          return resolve([]);
+        }
+
+        var targetId = found.id;
+
+        if (mediaType === "tv" && season && episode) {
+          getEpisodeId(targetId, season, episode).then(function(epId) {
+            if (!epId) {
+              console.log("[LaMovie] Episodio S" + season + "E" + episode + " no encontrado");
+              return resolve([]);
+            }
+            targetId = epId;
+            continueToPlayer();
+          });
+        } else {
+          continueToPlayer();
+        }
+
+        function continueToPlayer() {
+          httpGet(BASE_URL + "/wp-api/v1/player?postId=" + targetId + "&demo=0", { timeout: 6000, headers: HEADERS })
+            .then(function(data) {
+              if (!data || !data.data || !data.data.embeds || data.data.embeds.length === 0) {
+                console.log("[LaMovie] No hay embeds disponibles");
+                return resolve([]);
+              }
+
+              var embeds = data.data.embeds;
+              var results = [];
+              var completed = 0;
+
+              function next(i) {
+                if (i >= embeds.length) {
+                  var elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+                  console.log("[LaMovie] ✓ " + results.length + " streams en " + elapsed + "s");
+                  return resolve(results);
+                }
+
+                processEmbed(embeds[i]).then(function(result) {
+                  if (result) results.push(result);
+                  completed++;
+                  next(i + 1);
+                }).catch(function() {
+                  completed++;
+                  next(i + 1);
+                });
+              }
+
+              next(0);
+            })
+            .catch(function(e) {
+              console.log("[LaMovie] Error: " + e.message);
+              resolve([]);
+            });
+        }
+      });
+    }).catch(function(e) {
+      console.log("[LaMovie] Error: " + e.message);
+      resolve([]);
+    });
+  });
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { getStreams };
+} else {
+  global.getStreams = getStreams;
+}
