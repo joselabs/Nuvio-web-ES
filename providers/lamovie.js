@@ -1,5 +1,4 @@
 // providers/lamovie.js
-// Versión manual plana - Tu lógica 100% intacta
 
 var TMDB_API_KEY = "439c478a771f35c05022f9feabcca01c";
 var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
@@ -15,68 +14,90 @@ var RESOLVERS = {
 
 var IGNORED_HOSTS = [];
 
-// ==================== VIMEOS RESOLVER (tu versión) ====================
+// ==================== VIMEOS RESOLVER ====================
 function resolveVimeos(embedUrl) {
   return new Promise(function(resolve) {
-    console.log("[Vimeos] Resolviendo: " + embedUrl);
+    var attempt = 1;
+    var maxAttempts = 6;
 
-    var controller = new AbortController();
-    var timer = setTimeout(function() { controller.abort(); }, 15000);
-
-    fetch(embedUrl, {
-      headers: {
-        "User-Agent": UA,
-        "Referer": "https://vimeos.net/",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-      },
-      signal: controller.signal,
-      redirect: "follow"
-    })
-    .then(function(resp) {
-      clearTimeout(timer);
-      if (!resp.ok) throw new Error("HTTP " + resp.status);
-      return resp.text();
-    })
-    .then(function(data) {
-      var packMatch = data.match(/eval\(function\(p,a,c,k,e,[dr]\)\{[\s\S]+?\}\('([\s\S]+?)',(\d+),(\d+),'([\s\S]+?)'\.split\('\|'\)/);
-      if (!packMatch) {
-        console.log("[Vimeos] No se encontró pack");
+    function tryAgain() {
+      if (attempt > maxAttempts) {
+        console.log("[Vimeos] Máximo de intentos alcanzado");
         return resolve(null);
       }
 
-      var payload = packMatch[1];
-      var radix = parseInt(packMatch[2]);
-      var symtab = packMatch[4].split("|");
-      var chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      console.log(`[Vimeos] Intento ${attempt}: ${embedUrl}`);
 
-      var unbase = function(str) {
-        var result = 0;
-        for (var i = 0; i < str.length; i++) {
-          result = result * radix + chars.indexOf(str[i]);
+      var controller = new AbortController();
+      var timer = setTimeout(function() { controller.abort(); }, 12000);
+
+      fetch(embedUrl, {
+        headers: {
+          "User-Agent": UA,
+          "Referer": "https://vimeos.net/",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        },
+        signal: controller.signal,
+        redirect: "follow"
+      })
+      .then(function(resp) {
+        clearTimeout(timer);
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        return resp.text();
+      })
+      .then(function(data) {
+        var packMatch = data.match(/eval\(function\(p,a,c,k,e,[dr]\)\{[\s\S]+?\}\('([\s\S]+?)',(\d+),(\d+),'([\s\S]+?)'\.split\('\|'\)/);
+        if (!packMatch) {
+          attempt++;
+          return tryAgain();
         }
-        return result;
-      };
 
-      var unpacked = payload.replace(/\b(\w+)\b/g, function(match) {
-        var idx = unbase(match);
-        return symtab[idx] && symtab[idx] !== "" ? symtab[idx] : match;
-      });
+        var payload = packMatch[1];
+        var radix = parseInt(packMatch[2]);
+        var symtab = packMatch[4].split("|");
+        var chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-      var m3u8Match = unpacked.match(/["']([^"']+\.m3u8[^"']*)['"]/i);
-      if (m3u8Match) {
+        var unbase = function(str) {
+          var result = 0;
+          for (var i = 0; i < str.length; i++) {
+            result = result * radix + chars.indexOf(str[i]);
+          }
+          return result;
+        };
+
+        var unpacked = payload.replace(/\b(\w+)\b/g, function(match) {
+          var idx = unbase(match);
+          return symtab[idx] && symtab[idx] !== "" ? symtab[idx] : match;
+        });
+
+        var m3u8Match = unpacked.match(/["']([^"']+\.m3u8[^"']*)['"]/i);
+        if (!m3u8Match) {
+          attempt++;
+          return tryAgain();
+        }
+
         var url = m3u8Match[1];
-        var refererHeaders = { "User-Agent": UA, "Referer": "https://vimeos.net/" };
-        console.log("[Vimeos] URL encontrada: " + url.substring(0, 80) + "...");
-        return resolve({ url: url, quality: "1080p", headers: refererHeaders });
-      }
+        var iParam = (url.match(/[?&]i=([^&]*)/) || ["",""])[1];
 
-      console.log("[Vimeos] No se encontró URL");
-      resolve(null);
-    })
-    .catch(function(err) {
-      console.log("[Vimeos] Error: " + err.message);
-      resolve(null);
-    });
+        console.log(`[Vimeos] Intento ${attempt} → i=${iParam}`);
+
+        if (iParam === "0.0" || !iParam) {
+          console.log("[Vimeos] ✓ URL válida encontrada");
+          var refererHeaders = { "User-Agent": UA, "Referer": "https://vimeos.net/" };
+          return resolve({ url: url, quality: "1080p", headers: refererHeaders });
+        }
+
+        attempt++;
+        tryAgain();
+      })
+      .catch(function(err) {
+        console.log(`[Vimeos] Error intento ${attempt}: ${err.message}`);
+        attempt++;
+        tryAgain();
+      });
+    }
+
+    tryAgain();
   });
 }
 
