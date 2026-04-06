@@ -43,7 +43,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var __async = (__this, __arguments, generator) => {
-  return new Promise((resolve4, reject) => {
+  return new Promise((resolve5, reject) => {
     var fulfilled = (value) => {
       try {
         step(generator.next(value));
@@ -58,7 +58,7 @@ var __async = (__this, __arguments, generator) => {
         reject(e);
       }
     };
-    var step = (x) => x.done ? resolve4(x.value) : Promise.resolve(x.value).then(fulfilled, rejected);
+    var step = (x) => x.done ? resolve5(x.value) : Promise.resolve(x.value).then(fulfilled, rejected);
     step((generator = generator.apply(__this, __arguments)).next());
   });
 };
@@ -522,8 +522,94 @@ function resolve3(embedUrl) {
     }
   });
 }
+var UA5 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
+function unpack(packed) {
+  try {
+    const match = packed.match(
+      /eval\(function\(p,a,c,k,e,[rd]\)\{.*?\}\s*\('([\s\S]*?)',\s*(\d+),\s*(\d+),\s*'([\s\S]*?)'\.split\('\|'\)/
+    );
+    if (!match)
+      return null;
+    let [, p, a, c, k] = match;
+    a = parseInt(a);
+    c = parseInt(c);
+    k = k.split("|");
+    const base = (num, b) => {
+      const chars = "0123456789abcdefghijklmnopqrstuvwxyz";
+      let result = "";
+      while (num > 0) {
+        result = chars[num % b] + result;
+        num = Math.floor(num / b);
+      }
+      return result || "0";
+    };
+    p = p.replace(/\b\w+\b/g, (word) => {
+      const num = parseInt(word, 36);
+      const replacement = num < k.length && k[num] ? k[num] : base(num, a);
+      return replacement;
+    });
+    return p;
+  } catch (e) {
+    return null;
+  }
+}
+function resolve4(embedUrl) {
+  return __async(this, null, function* () {
+    var _a;
+    try {
+      console.log(`[VidHide] Resolviendo: ${embedUrl}`);
+      const resp = yield fetch(embedUrl, {
+        method: "GET",
+        headers: {
+          "User-Agent": UA5,
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Referer": "https://embed69.org/"
+        },
+        redirect: "follow"
+      });
+      if (!resp.ok)
+        throw new Error(`HTTP ${resp.status}`);
+      const html = yield resp.text();
+      const evalMatch = html.match(/eval\(function\(p,a,c,k,e,[rd]\)[\s\S]*?\.split\('\|'\)[^\)]*\)\)/);
+      if (!evalMatch) {
+        console.log("[VidHide] No se encontr\xF3 bloque eval");
+        return null;
+      }
+      const unpacked = unpack(evalMatch[0]);
+      if (!unpacked) {
+        console.log("[VidHide] No se pudo desempacar");
+        return null;
+      }
+      const hls4Match = unpacked.match(/"hls4"\s*:\s*"([^"]+)"/);
+      const hls2Match = unpacked.match(/"hls2"\s*:\s*"([^"]+)"/);
+      const m3u8Relative = (_a = hls4Match || hls2Match) == null ? void 0 : _a[1];
+      if (!m3u8Relative) {
+        console.log("[VidHide] No se encontr\xF3 hls4/hls2");
+        return null;
+      }
+      let m3u8Url = m3u8Relative;
+      if (!m3u8Relative.startsWith("http")) {
+        const origin2 = new URL(embedUrl).origin;
+        m3u8Url = `${origin2}${m3u8Relative}`;
+      }
+      console.log(`[VidHide] URL encontrada: ${m3u8Url.substring(0, 80)}...`);
+      const origin = new URL(embedUrl).origin;
+      return {
+        url: m3u8Url,
+        headers: {
+          "User-Agent": UA5,
+          "Referer": `${origin}/`,
+          "Origin": origin
+        }
+      };
+    } catch (e) {
+      console.log(`[VidHide] Error: ${e.message}`);
+      return null;
+    }
+  });
+}
 var TMDB_API_KEY = "439c478a771f35c05022f9feabcca01c";
-var UA5 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+var UA6 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 var BASE_URL = "https://embed69.org";
 var RESOLVER_MAP = {
   "voe.sx": resolve,
@@ -537,15 +623,17 @@ var RESOLVER_MAP = {
   // filemoon alias
   "filemoon.sx": resolve2,
   "filemoon.to": resolve2,
-  "moonembed.pro": resolve2
-  //'dintezuvio.com':   resolveVidhide,   // vidhide
-  //'vidhide.com':      resolveVidhide,
+  "moonembed.pro": resolve2,
+  "dintezuvio.com": resolve4,
+  // vidhide
+  "vidhide.com": resolve4,
+  "minochinos.com": resolve4
 };
 var SERVER_LABELS = {
-  //'voe':        'VOE',
-  "streamwish": "StreamWish"
-  //'filemoon':   'Filemoon',
-  //'vidhide':    'VidHide',
+  "voe": "VOE",
+  "streamwish": "StreamWish",
+  "filemoon": "Filemoon",
+  "vidhide": "VidHide"
 };
 var LANG_PRIORITY = ["LAT", "ESP", "SUB"];
 function decodeJwtPayload(token) {
@@ -583,7 +671,7 @@ function getImdbId(tmdbId, mediaType) {
   return __async(this, null, function* () {
     const endpoint = mediaType === "movie" ? `https://api.themoviedb.org/3/movie/${tmdbId}/external_ids?api_key=${TMDB_API_KEY}` : `https://api.themoviedb.org/3/tv/${tmdbId}/external_ids?api_key=${TMDB_API_KEY}`;
     const data = yield fetch(endpoint, {
-      headers: { "User-Agent": UA5 }
+      headers: { "User-Agent": UA6 }
     }).then((r) => r.json());
     return data.imdb_id || null;
   });
@@ -645,7 +733,7 @@ function getStreams(tmdbId, mediaType, season, episode) {
       console.log(`[Embed69] Fetching: ${embedUrl}`);
       const html = yield fetch(embedUrl, {
         headers: {
-          "User-Agent": UA5,
+          "User-Agent": UA6,
           "Referer": "https://sololatino.net/",
           "Accept": "text/html,application/xhtml+xml"
         }
@@ -697,5 +785,3 @@ function getStreams(tmdbId, mediaType, season, episode) {
     }
   });
 }
-
-
