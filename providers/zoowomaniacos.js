@@ -50,21 +50,20 @@ __export(zoowomaniacos_exports, {
   getStreams: () => getStreams
 });
 module.exports = __toCommonJS(zoowomaniacos_exports);
-var import_axios2 = __toESM(require("axios"));
 var import_axios = __toESM(require("axios"));
 var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
 function resolve(embedUrl) {
   return __async(this, null, function* () {
     try {
       console.log(`[OkRu] Resolviendo: ${embedUrl}`);
-      const { data: raw } = yield import_axios.default.get(embedUrl, {
-        timeout: 1e4,
+      const raw = yield fetch(embedUrl, {
         headers: {
           "User-Agent": UA,
           "Accept": "text/html",
           "Referer": "https://ok.ru/"
-        }
-      });
+        },
+        redirect: "follow"
+      }).then((r) => r.text());
       if (raw.includes("copyrightsRestricted") || raw.includes("COPYRIGHTS_RESTRICTED") || raw.includes("LIMITED_ACCESS") || raw.includes("notFound") || !raw.includes("urls")) {
         console.log("[OkRu] Video no disponible o eliminado");
         return null;
@@ -117,7 +116,7 @@ function getTmdbData(tmdbId, mediaType) {
     for (const { lang, name } of attempts) {
       try {
         const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=${lang}`;
-        const { data } = yield import_axios2.default.get(url, { timeout: 5e3, headers: { "User-Agent": UA2 } });
+        const { data } = yield import_axios.default.get(url, { timeout: 5e3, headers: { "User-Agent": UA2 } });
         const title = mediaType === "movie" ? data.title : data.name;
         const originalTitle = mediaType === "movie" ? data.original_title : data.original_name;
         if (!title)
@@ -136,7 +135,7 @@ function getTmdbData(tmdbId, mediaType) {
 function searchMovie(query) {
   return __async(this, null, function* () {
     try {
-      const { data } = yield import_axios2.default.post(
+      const { data } = yield import_axios.default.post(
         `${BASE_URL}/alternativo3/server.php`,
         new URLSearchParams({
           "start": "0",
@@ -182,7 +181,7 @@ function selectBestResult(results, tmdbInfo) {
 function getEmbeds(id) {
   return __async(this, null, function* () {
     try {
-      const { data: html } = yield import_axios2.default.get(`${BASE_URL}/testplayer.php?id=${id}`, {
+      const { data: html } = yield import_axios.default.get(`${BASE_URL}/testplayer.php?id=${id}`, {
         timeout: 8e3,
         headers: { "User-Agent": UA2, "Accept": "text/html", "Referer": BASE_URL + "/" }
       });
