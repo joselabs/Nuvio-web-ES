@@ -150,12 +150,12 @@ function searchMovie(query) {
         "searchPanes[a4][0]": "",
         "searchPanes[a5][0]": "",
         "searchPanes[a6][0]": ""
-      });
+      }).toString();
       const data = yield fetch(`${BASE_URL}/alternativo3/server.php`, {
         method: "POST",
         headers: __spreadProps(__spreadValues({}, HEADERS), {
           "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-          "Content-Length": params.toString().length.toString()
+          "Content-Length": params.length.toString()
         }),
         body: params
       }).then((r) => r.json());
@@ -277,4 +277,5 @@ function getStreams(tmdbId, mediaType) {
     }
   });
 }
+
 
