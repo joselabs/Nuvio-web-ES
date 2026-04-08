@@ -141,7 +141,7 @@ function getTmdbData(tmdbId, mediaType) {
 function searchMovie(query) {
   return __async(this, null, function* () {
     try {
-      const formData = new URLSearchParams({
+      const params = new URLSearchParams({
         "start": "0",
         "length": "10",
         "metodo": "ObtenerListaTotal",
@@ -154,9 +154,10 @@ function searchMovie(query) {
       const data = yield fetch(`${BASE_URL}/alternativo3/server.php`, {
         method: "POST",
         headers: __spreadProps(__spreadValues({}, HEADERS), {
-          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+          "Content-Length": params.toString().length.toString()
         }),
-        body: formData
+        body: params
       }).then((r) => r.json());
       return (data == null ? void 0 : data.data) || [];
     } catch (e) {
