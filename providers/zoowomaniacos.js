@@ -116,7 +116,7 @@ function getTmdbData(tmdbId, mediaType) {
     for (const { lang, name } of attempts) {
       try {
         const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=${lang}`;
-        const { data } = yield import_axios.default.get(url, { timeout: 5e3, headers: { "User-Agent": UA2 } });
+        const data = yield fetch(url, { headers: { "User-Agent": UA2 } }).then((r) => r.json());
         const title = mediaType === "movie" ? data.title : data.name;
         const originalTitle = mediaType === "movie" ? data.original_title : data.original_name;
         if (!title)
@@ -203,7 +203,7 @@ function getEmbeds(id) {
     }
   });
 }
-function getStreams(tmdbId, mediaType, season, episode) {
+function getStreams(tmdbId, mediaType) {
   return __async(this, null, function* () {
     if (!tmdbId || mediaType !== "movie")
       return [];
