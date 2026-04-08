@@ -181,10 +181,9 @@ function selectBestResult(results, tmdbInfo) {
 function getEmbeds(id) {
   return __async(this, null, function* () {
     try {
-      const { data: html } = yield import_axios.default.get(`${BASE_URL}/testplayer.php?id=${id}`, {
-        timeout: 8e3,
+      const html = yield fetch(`${BASE_URL}/testplayer.php?id=${id}`, {
         headers: { "User-Agent": UA2, "Accept": "text/html", "Referer": BASE_URL + "/" }
-      });
+      }).then((r) => r.text());
       const matches = [...html.matchAll(/src="(https?:\/\/[^"]+)"/g)];
       const urls = [...new Set(matches.map((m) => m[1]))];
       const okru = urls.filter((url) => {
