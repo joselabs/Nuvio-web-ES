@@ -41,7 +41,7 @@ const SERVER_LABELS = {
 };
 
 // Prioridad de idioma (menor índice = mayor prioridad)
-const LANG_PRIORITY = ['LAT', 'ESP', 'SUB'];
+const LANG_PRIORITY = ['ESP', 'LAT', 'SUB'];
 
 // ============================================================================
 // UTILIDADES
@@ -161,7 +161,7 @@ export async function getStreams(tmdbId, mediaType, season, episode) {
 
     // 5. Extraer embeds resolvibles de una sección
     function getEmbeds(section) {
-      const lang = section.video_language || 'LAT';
+      const lang = section.video_language || 'ESP';
       const embeds = [];
       for (const embed of (section.sortedEmbeds || [])) {
         if (embed.servername === 'download') continue;
