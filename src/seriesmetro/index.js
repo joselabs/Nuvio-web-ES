@@ -11,13 +11,13 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 const HEADERS = {
   'User-Agent': UA,
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-  'Accept-Language': 'es-MX,es;q=0.9',
+  'Accept-Language': 'es-ES,es;q=0.9',
   'Connection': 'keep-alive',
   'Upgrade-Insecure-Requests': '1',
 };
 
 // Prioridad de idiomas: Latino primero
-const LANG_PRIORITY = ['latino', 'lat', 'castellano', 'español', 'esp', 'vose', 'sub', 'subtitulado'];
+const LANG_PRIORITY = ['castellano', 'español', 'esp','latino', 'lat', 'vose', 'sub', 'subtitulado'];
 
 const LANG_MAP = {
   'latino': 'Latino', 'lat': 'Latino',
@@ -56,7 +56,7 @@ async function getTmdbData(tmdbId, mediaType) {
       const title = mediaType === 'movie' ? data.title : data.name;
       const originalTitle = mediaType === 'movie' ? data.original_title : data.original_name;
 
-      if (lang === 'es-MX' && /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(title)) continue;
+      if (lang === 'es-ES' && /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(title)) continue;
 
       console.log(`[SeriesMetro] TMDB (${name}): "${title}"`);
       return { title, originalTitle };
@@ -171,7 +171,7 @@ async function extractStreams(pageUrl, referer) {
       });
 
       // Si ya tenemos Latino, no seguir
-      if (lang === 'Latino') {
+      if (lang === 'Castellano') {
         console.log('[SeriesMetro] Latino encontrado, retornando');
         return streams;
       }
